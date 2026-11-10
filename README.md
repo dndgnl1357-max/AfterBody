@@ -25,6 +25,8 @@ python scripts/build_clean_db.py         # 음식 DB 통합, 국민건강영양�
 python scripts/build_reference_tables.py # 주류·운동 MET·GI 참고표
 python scripts/build_kdri_table.py       # 2025 KDRI 성인 기준치, 에너지필요추정량 공식
 python scripts/build_food_mapping.py     # 대표식품 분포표, 별칭표
+python scripts/build_effects_table.py    # 생활습관 효과 크기 (문헌)
+python scripts/train_risk_models.py      # 위험 예측 모델
 ```
 
 결과는 `data/nutrition.db`에 저장되고, 참고표는 `data/reference/*.csv`로도 내보냅니다(git 포함).

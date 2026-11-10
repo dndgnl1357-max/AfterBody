@@ -1,0 +1,8 @@
+﻿id,intervention,outcome,effect,ci_low,ci_high,per,population,design,source,url,note
+weight_sbp,체중 감량,수축기혈압(mmHg),-1.05,-1.43,-0.66,체중 1kg 감량,"성인 4,874명",RCT 25건 메타분석,"Neter 2003, Hypertension 42:878",https://doi.org/10.1161/01.HYP.0000094221.86888.AE,
+weight_dbp,체중 감량,이완기혈압(mmHg),-0.92,-1.28,-0.55,체중 1kg 감량,"성인 4,874명",RCT 25건 메타분석,"Neter 2003, Hypertension 42:878",https://doi.org/10.1161/01.HYP.0000094221.86888.AE,
+salt_sbp,나트륨 감량,수축기혈압(mmHg),-4.18,-5.18,-3.18,"소금 4.4g/일(나트륨 약 1,730mg) 감량",고혈압·정상 혼합,RCT 34건 메타분석,"He 2013, BMJ 346:f1325",https://doi.org/10.1136/bmj.f1325,고혈압자는 -5.39. 회귀: 나트륨 100mmol(소금 6g) 감량당 -5.8
+alcohol_sbp,절주,수축기혈압(mmHg),-5.5,-6.7,-4.3,음주량 약 50% 감량,하루 6잔 이상 음주자,RCT 36건 메타분석,"Roerecke 2017, Lancet Public Health 2:e108",https://pmc.ncbi.nlm.nih.gov/articles/PMC6118407,하루 2잔 이하 음주자는 유의한 변화 없음(역치 효과) → 엔진은 고위험음주자에게만 적용
+aerobic_sbp,유산소 운동,수축기혈압(mmHg),-3.5,-4.6,-2.3,4주 이상 규칙적 지구력 운동,"건강 성인 5,223명",RCT 93건 메타분석,"Cornelissen 2013, JAHA 2:e004473",https://doi.org/10.1161/JAHA.112.004473,고혈압자는 약 -8.3 (추정 불확실성 큼)
+weight_dm,체중 감량,당뇨병 발생위험(상대위험),0.84,,,체중 1kg 감량,"당뇨 전단계 고위험군 1,079명",DPP 생활습관군 분석(관찰적),"Hamman 2006, Diabetes Care 29:2102",https://pubmed.ncbi.nlm.nih.gov/16936160/,5kg당 HR 0.42~0.49. 연관 추정치이므로 '추정' 표시
+sbp_cvd,혈압 감소,주요 심혈관사건(상대위험),0.8,0.77,0.83,수축기혈압 10mmHg 감소,61만 명,RCT 123건 메타분석,"Ettehad 2016, Lancet 387:957",https://doi.org/10.1016/S0140-6736(15)01225-8,"뇌졸중 0.73, 관상동맥질환 0.83, 심부전 0.72"
