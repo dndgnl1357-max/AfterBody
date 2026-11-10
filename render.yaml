@@ -1,0 +1,10 @@
+# Render 블루프린트: Render 대시보드 → New → Blueprint → 이 저장소 선택하면 자동 설정
+services:
+  - type: web
+    name: afterbody
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true

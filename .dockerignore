@@ -1,0 +1,6 @@
+*
+!requirements.txt
+!engine/
+!api/
+!scripts/fetch_runtime.py
+**/__pycache__

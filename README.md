@@ -4,6 +4,12 @@
 
 음식·음주·운동 같은 행동을 하기 전에, 내 건강 상태를 기준으로 단기·장기 변화를 비교해 보여주는 서비스의 MVP 데이터·모델 저장소입니다.
 
+## 웹 배포 (Render)
+
+`Dockerfile` + `render.yaml` 포함. Render → **New → Blueprint** → 이 저장소 선택 → 자동 빌드·배포.
+빌드 시 GitHub Releases 최신 `afterbody-runtime.zip` 을 내려받으므로 **릴리스가 먼저 있어야 함**.
+서버는 사용자 입력·사진을 저장하지 않음 (요청마다 계산만 하고 버림).
+
 ## 실행하기 (다른 PC 포함)
 
 **준비물: Python 3.11 이상** (설치할 때 "Add python.exe to PATH" 체크). Node.js 는 필요 없어요.
