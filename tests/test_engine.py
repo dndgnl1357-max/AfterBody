@@ -104,6 +104,12 @@ class TestSimulate(unittest.TestCase):
         lt = self.r["치맥"]["long_term"]
         self.assertLess(abs(lt[0]["weight_change_kg"]["med"]), abs(lt[1]["weight_change_kg"]["med"]))
 
+    def test_inbody_bmr_used(self):
+        p = Person(sex=1, age=35, height_cm=174, weight_kg=78, bmr_kcal=1700, activity="저활동적")
+        out = simulate(p, [Scenario("x", foods=[FoodInput("밥", 210)])], n_sim=50)
+        self.assertEqual(out["person"]["eer_kcal"], round(1700 * C.PAL_BY_ACTIVITY["저활동적"]))
+        self.assertIn("인바디", out["person"]["energy_source"])
+
     def test_unknown_food_warns(self):
         out = simulate(ME, [Scenario("x", foods=[FoodInput("ㅁㄴㅇㄹ없는음식")])], n_sim=50)
         self.assertTrue(out["results"][0]["warnings"])

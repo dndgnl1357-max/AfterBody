@@ -35,6 +35,10 @@ class Person:
     activity: str = "저활동적"         # 비활동적 / 저활동적 / 활동적 / 매우활동적
     sbp: Optional[float] = None      # 측정한 수축기혈압 (있으면 예상 혈압을 함께 계산)
     usual_alcohol_g_per_day: float = 0.0
+    # 인바디 결과 (선택) — BMR이 있으면 하루 필요열량을 실측 기반으로 계산
+    bmr_kcal: Optional[float] = None
+    body_fat_pct: Optional[float] = None
+    skeletal_muscle_kg: Optional[float] = None
 
     @property
     def height_m(self):
@@ -125,7 +129,11 @@ def _sodium_limit(con, sex, age):
 def simulate(person: Person, scenarios, n_sim=500, seed=0, horizons_days=(90, 365)):
     con = sqlite3.connect(C.DB)
     try:
-        eer = P.eer_kcal(person.sex, person.age, person.weight_kg, person.height_m, person.activity)
+        if person.bmr_kcal:
+            eer, energy_source = person.bmr_kcal * C.PAL_BY_ACTIVITY[person.activity], "인바디 기초대사량 × 활동계수"
+        else:
+            eer, energy_source = P.eer_kcal(person.sex, person.age, person.weight_kg, person.height_m,
+                                            person.activity), "2025 한국인 영양소 섭취기준 공식"
         sodium_limit = _sodium_limit(con, person.sex, person.age)
         rice = lookup("밥", con)["items"][0]["kcal"]["med"] * C.RICE_BOWL_G / 100
         base_probs = {k: float(v[0]) for k, v in
@@ -136,7 +144,9 @@ def simulate(person: Person, scenarios, n_sim=500, seed=0, horizons_days=(90, 36
     finally:
         con.close()
     return {
-        "person": {"bmi": round(person.bmi, 1), "eer_kcal": round(eer), "sodium_limit_mg": sodium_limit,
+        "person": {"bmi": round(person.bmi, 1), "eer_kcal": round(eer), "energy_source": energy_source,
+                   "body_fat_pct": person.body_fat_pct, "skeletal_muscle_kg": person.skeletal_muscle_kg,
+                   "sodium_limit_mg": sodium_limit,
                    "risk_now": {k: round(v * 100, 1) for k, v in base_probs.items()}},
         "results": results,
         "assumptions": [

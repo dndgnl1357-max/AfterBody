@@ -29,6 +29,9 @@ class PersonIn(BaseModel):
     activity: Literal["비활동적", "저활동적", "활동적", "매우활동적"] = "저활동적"
     sbp: Optional[float] = Field(default=None, ge=70, le=250)
     usual_alcohol_g_per_day: float = Field(default=0, ge=0, le=500)
+    bmr_kcal: Optional[float] = Field(default=None, ge=600, le=4000)       # 인바디 기초대사량
+    body_fat_pct: Optional[float] = Field(default=None, ge=2, le=70)       # 인바디 체지방률
+    skeletal_muscle_kg: Optional[float] = Field(default=None, ge=5, le=80) # 인바디 골격근량
 
 
 class FoodIn(BaseModel):

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { searchFood } from "../api";
+import { QUICK_FOODS } from "../presets";
 
 const inputCls = "w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
 const RemoveBtn = ({ onClick }) => (
@@ -25,7 +26,7 @@ function FoodRow({ food, onChange, onRemove }) {
   return (
     <div className="relative">
       <div className="flex items-center gap-1.5">
-        <input className={inputCls} value={food.query} placeholder="음식 (예: 치킨, 떡볶이)"
+        <input className={inputCls} value={food.query} placeholder="아무 음식이나 입력 (예: 마라탕)"
           onChange={(e) => onChange({ ...food, query: e.target.value, choice: 0 })}
           onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
         <input type="number" className={`${inputCls} w-20`} value={food.grams ?? ""} min={1}
@@ -66,25 +67,37 @@ export default function ScenarioCard({ index, color, scenario, catalog, onChange
   const removeAt = (key, i) => set({ [key]: scenario[key].filter((_, j) => j !== i) });
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-line" style={{ borderTop: `4px solid ${color}` }}>
+    <section className="flex flex-col gap-4 rounded-3xl bg-card p-5 shadow-sm ring-1 ring-line">
       <div className="flex items-center gap-2">
         <span className="grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: color }}>{index + 1}</span>
-        <input className="w-full bg-transparent text-base font-bold focus:outline-none" value={scenario.name}
+        <input className="font-display w-full bg-transparent text-xl focus:outline-none" value={scenario.name}
           onChange={(e) => set({ name: e.target.value })} maxLength={40} />
         {onRemove && <RemoveBtn onClick={onRemove} />}
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold text-mute">🍗 먹을 것</h3>
+        <h3 className="text-xs font-semibold text-mute">뭐 먹을 거예요?</h3>
         {scenario.foods.map((f, i) => (
           <FoodRow key={i} food={f} onChange={(v) => updateAt("foods", i, v)} onRemove={() => removeAt("foods", i)} />
         ))}
         <button type="button" className="self-start text-sm text-brand"
           onClick={() => set({ foods: [...scenario.foods, { query: "", grams: null, choice: 0 }] })}>+ 음식 추가</button>
+        <div className="flex flex-wrap gap-1">
+          {QUICK_FOODS.map((q) => (
+            <button key={q} type="button"
+              onClick={() => {
+                const foods = scenario.foods.filter((f) => f.query.trim());
+                set({ foods: [...foods, { query: q, grams: null, choice: 0 }] });
+              }}
+              className="rounded-full bg-paper px-2.5 py-0.5 text-xs text-mute hover:bg-brand hover:text-white">
+              {q}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold text-mute">🍺 마실 것</h3>
+        <h3 className="text-xs font-semibold text-mute">한잔할 거예요?</h3>
         {scenario.drinks.map((d, i) => {
           const unit = catalog?.drinks.find((x) => x.name === d.name)?.unit ?? "잔";
           return (
@@ -104,7 +117,7 @@ export default function ScenarioCard({ index, color, scenario, catalog, onChange
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold text-mute">🏃 움직일 것</h3>
+        <h3 className="text-xs font-semibold text-mute">좀 움직일 거예요?</h3>
         {scenario.exercises.map((x, i) => (
           <div key={i} className="flex items-center gap-1.5">
             <select className={inputCls} value={x.name} onChange={(e) => updateAt("exercises", i, { ...x, name: e.target.value })}>
@@ -121,7 +134,7 @@ export default function ScenarioCard({ index, color, scenario, catalog, onChange
       </div>
 
       <label className="mt-auto flex flex-col gap-1 border-t border-line pt-3 text-sm">
-        <span className="flex justify-between"><span className="text-mute">이 선택을 일주일에</span><b>{scenario.times_per_week}번</b></span>
+        <span className="flex justify-between"><span className="text-mute">이런 날이 일주일에</span><b>{scenario.times_per_week}번</b></span>
         <input type="range" min={1} max={7} value={scenario.times_per_week} style={{ accentColor: color }}
           onChange={(e) => set({ times_per_week: Number(e.target.value) })} />
       </label>

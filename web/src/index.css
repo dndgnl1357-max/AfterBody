@@ -2,16 +2,21 @@
 
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
-  --color-ink: #1f2430;
-  --color-mute: #6b7280;
-  --color-paper: #f7f5f1;
+  --font-display: "Jua", "Pretendard Variable", sans-serif;
+  --color-ink: #2d2a32;
+  --color-mute: #8a8494;
+  --color-paper: #fff8f0;
   --color-card: #ffffff;
-  --color-line: #e7e3dc;
-  --color-brand: #3b5bdb;
-  --color-s0: #e8590c; /* 시나리오 1 */
-  --color-s1: #1c7ed6; /* 시나리오 2 */
-  --color-s2: #2f9e44; /* 시나리오 3 */
+  --color-line: #f0e6da;
+  --color-brand: #ff7a45;
 }
 
 html, body { background: var(--color-paper); color: var(--color-ink); }
+body {
+  background-image:
+    radial-gradient(600px 300px at 10% -5%, #ffe3d1 0%, transparent 70%),
+    radial-gradient(500px 300px at 95% 10%, #dff3ff 0%, transparent 70%);
+  background-repeat: no-repeat;
+}
+.font-display { letter-spacing: -0.01em; }
 input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
