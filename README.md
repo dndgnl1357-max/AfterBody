@@ -1,0 +1,56 @@
+# MediUp
+
+개인 건강 디지털 트윈 기반 What-if 시뮬레이션 — "내 몸에 먼저 해보기"
+
+음식·음주·운동 같은 행동을 하기 전에, 내 건강 상태를 기준으로 단기·장기 변화를 비교해 보여주는 서비스의 MVP 데이터·모델 저장소입니다.
+
+## 원본 데이터 (git에 포함되지 않음)
+
+용량이 크거나 재배포가 제한된 파일이므로 **각자 내려받아 저장소 루트(`C:\mediup` 등)에 그대로 두세요.**
+
+| 파일 | 출처 | 비고 |
+|---|---|---|
+| `20260929_가공식품DB_323197건.xlsx` | 식품의약품안전처 식품영양성분 DB | |
+| `20260828_음식DB_19617건.xlsx` | 〃 | |
+| `20260623_건강기능식품DB_5556건 (3).xlsx` | 〃 | |
+| `HN24_ALL(SAS) (1).zip` | 질병관리청 국민건강영양조사 2024 원시자료 | **이용자 동의 후 개인별 다운로드, 제3자 공유 금지** |
+| `국민건강보험공단_직역별 성별 연령별 건강검진정보_20231231.csv` | 공공데이터포털 | |
+| `2025+KDRI_1~3권 *.pdf` | 보건복지부 2025 한국인 영양소 섭취기준 | |
+| `data/nutrition.db` (R 원재료 3,701건 포함) | 식약처 API 수집본 | 원재료성 식품은 아직 엑셀 신규본이 없어 기존 DB에서 가져옴 |
+
+## DB 만들기 (순서대로 실행)
+
+```bash
+python scripts/build_clean_db.py         # 음식 DB 통합, 국민건강영양조사 정제
+python scripts/build_reference_tables.py # 주류·운동 MET·GI 참고표
+python scripts/build_kdri_table.py       # 2025 KDRI 성인 기준치, 에너지필요추정량 공식
+python scripts/build_food_mapping.py     # 대표식품 분포표, 별칭표
+```
+
+결과는 `data/nutrition.db`에 저장되고, 참고표는 `data/reference/*.csv`로도 내보냅니다(git 포함).
+
+## DB 테이블
+
+| 테이블 | 내용 |
+|---|---|
+| `food_nutrition` | 영양성분 35만 건 (D 음식 / P 가공식품 / R 원재료 / F 건강기능식품) |
+| `food_group_stats` | 대표식품별 영양값 분포 (p10 / 중앙값 / p90), 대표 1회 중량 |
+| `food_alias` | 일상 표현 → 대표식품·주류 연결 (예: 치맥 → 닭튀김 + 맥주) |
+| `knhanes_2024_adult` | 국민건강영양조사 2024 성인 6,033명 정제본 (검진·생활습관·영양·질환 라벨) |
+| `population_baseline` | 국민건강통계 2024 전국 평균 지표 |
+| `ref_alcohol` / `ref_exercise` / `ref_gi`, `ref_gi_food` | 주류, 운동 MET, 혈당지수 |
+| `ref_kdri_adult`, `ref_kdri_pa` | 2025 KDRI 성인 기준치, 신체활동계수 |
+| `nhis_checkup_2022` | 건보공단 검진 결과 집계 |
+
+## 음식 검색 써보기
+
+```bash
+python scripts/food_search.py 치킨 치맥 고구마 마라샹궈
+```
+
+## 할 일
+
+- [ ] `data/reference/food_alias.csv` 검수 (`reviewed` → 1), 자주 쓰는 음식 이름 추가
+- [ ] 1인 1회 분량표 확보 (2025 KDRI '활용편' 또는 2020 활용 연구)
+- [ ] 위험 예측 모델 학습 (고혈압·당뇨·이상지질혈증)
+- [ ] 시뮬레이션 엔진 / 데모 화면
