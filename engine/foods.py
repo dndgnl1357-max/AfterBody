@@ -9,8 +9,8 @@ MediUp - 음식 입력 → 영양 프로필(범위 포함) 조회 모듈
 각 결과는 100g(또는 100ml)당 p10/중앙값/p90 범위와 대표 1회 중량, GI(있으면), 신뢰도를 담는다.
 엔진은 중앙값으로 계산하고 p10~p90을 '추정 범위'로 표시하면 된다.
 
-사용 예 (CLI):  python scripts/food_search.py 치킨 치맥 고구마 떡볶이 마라샹궈
-코드에서:       from food_search import lookup;  lookup("치킨")
+사용 예 (CLI):  python -m engine.foods 치킨 치맥 고구마 떡볶이 마라샹궈
+코드에서:       from engine.foods import lookup;  lookup("치킨")
 """
 import re
 import sqlite3
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-DB = Path(r"C:\mediup\data\nutrition.db")
+DB = Path(__file__).resolve().parents[1] / "data" / "nutrition.db"
 NUTR = {"enerc": "kcal", "chocdf": "carb_g", "sugar": "sugar_g", "prot": "protein_g",
         "fatce": "fat_g", "nat": "sodium_mg"}
 DATA_ORDER = {"D": 0, "R": 1, "P": 2}

@@ -44,16 +44,29 @@ python scripts/train_risk_models.py      # 위험 예측 모델
 | `ref_kdri_adult`, `ref_kdri_pa` | 2025 KDRI 성인 기준치, 신체활동계수 |
 | `nhis_checkup_2022` | 건보공단 검진 결과 집계 |
 
-## 음식 검색 써보기
+## 시뮬레이션 엔진 (`engine/`)
 
 ```bash
-python scripts/food_search.py 치킨 치맥 고구마 마라샹궈
+python -m engine                         # 데모: 치킨+맥주 / 치킨+물 / 샐러드+걷기 비교
+python -m engine.foods 치킨 치맥 고구마     # 음식 검색
+python -m unittest discover tests -v     # 검증 테스트 (KDRI·문헌 수치 재현, 방향성)
 ```
+
+```python
+from engine import simulate, Person, Scenario, FoodInput, DrinkInput, ExerciseInput
+me = Person(sex=1, age=35, height_cm=174, weight_kg=78, sbp=128)
+simulate(me, [Scenario("치맥", foods=[FoodInput("치킨", 450)], drinks=[DrinkInput("생맥주", 2)], times_per_week=2)])
+```
+
+- 오늘: 열량·나트륨·혈당부하(GI)·혈중알코올 곡선(Widmark)·운동 소모(MET)·재미 환산
+- 장기(3개월·1년): 체중(Hall 2011) → BMI → 질환 확률(KNHANES 모델), 혈압(RCT 메타분석) → 심혈관 상대위험
+- 모든 결과는 `{p10, med, p90}` 범위 (몬테카를로) — 상수와 출처는 `engine/config.py`, `ref_effects`
 
 ## 할 일
 
 - [ ] `data/reference/food_alias.csv` 검수 (`reviewed` → 1), 자주 쓰는 음식 이름 추가
 - [x] ~~1인 1회 분량표 확보~~ → 2025 KDRI 활용편 미출간. MVP는 100g 기준 + 섭취량(g) 입력으로 진행
 - [ ] (선택) 국민건강영양조사 24시간 회상 원시자료(HN24_24RC)로 실제 1회 섭취량 산출
-- [ ] 위험 예측 모델 학습 (고혈압·당뇨·이상지질혈증)
-- [ ] 시뮬레이션 엔진 / 데모 화면
+- [x] 위험 예측 모델 학습 (고혈압·당뇨·이상지질혈증)
+- [x] 시뮬레이션 엔진
+- [ ] API (FastAPI) / 화면 (React)
