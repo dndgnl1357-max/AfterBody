@@ -32,3 +32,5 @@ models/*.joblib
 # 웹
 web/node_modules/
 web/dist/
+dist/
+data/runtime.db

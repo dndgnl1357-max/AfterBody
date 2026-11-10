@@ -8,6 +8,7 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from engine import DrinkInput, ExerciseInput, FoodInput, Person, Scenario, simulate
@@ -111,3 +112,9 @@ def run(body: SimulateIn):
     if not any(s.foods or s.drinks or s.exercises for s in scenarios):
         raise HTTPException(400, "시나리오에 음식·술·운동 중 하나 이상을 넣어 주세요.")
     return simulate(p, scenarios, n_sim=400)
+
+
+# 빌드된 화면(web/dist)이 있으면 http://localhost:8000 에서 바로 열림 (Node.js 불필요)
+_WEB = C.ROOT / "web" / "dist"
+if (_WEB / "index.html").exists():
+    app.mount("/", StaticFiles(directory=_WEB, html=True), name="web")

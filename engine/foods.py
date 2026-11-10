@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-DB = Path(__file__).resolve().parents[1] / "data" / "nutrition.db"
+from .config import DB  # noqa: E402  (전체/실행용 DB 자동 선택)
 NUTR = {"enerc": "kcal", "chocdf": "carb_g", "sugar": "sugar_g", "prot": "protein_g",
         "fatce": "fat_g", "nat": "sodium_mg"}
 DATA_ORDER = {"D": 0, "R": 1, "P": 2}

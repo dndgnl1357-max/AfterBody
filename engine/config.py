@@ -2,7 +2,10 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# 개발 PC: 전체 DB(nutrition.db) / 배포 PC: 실행용 DB(runtime.db, setup.bat 이 내려받음)
 DB = ROOT / "data" / "nutrition.db"
+if not DB.exists():
+    DB = ROOT / "data" / "runtime.db"
 MODEL_DIR = ROOT / "models"
 
 # ── 체중 동역학 (Hall KD et al. 2011, Lancet 378:826, PMC3880593)
