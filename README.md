@@ -4,17 +4,27 @@
 
 음식·음주·운동 같은 행동을 하기 전에, 내 건강 상태를 기준으로 단기·장기 변화를 비교해 보여주는 서비스의 MVP 데이터·모델 저장소입니다.
 
-## 실행하기
+## 실행하기 (다른 PC 포함)
 
-처음 한 번: `pip install -r requirements.txt` (Node.js 도 필요)
+**준비물: Python 3.11 이상** (설치할 때 "Add python.exe to PATH" 체크). Node.js 는 필요 없어요.
 
-**Windows: `start.bat` 더블클릭** → API 서버와 화면이 켜지고 브라우저가 열립니다 (http://localhost:5173).
+1. 이 저장소를 내려받기 — GitHub 초록색 **Code → Download ZIP** 후 압축 풀기 (또는 `git clone`)
+2. **`setup.bat` 더블클릭** (처음 한 번) — 파이썬 패키지 설치 + 실행 데이터(DB·모델·화면, 약 17MB) 내려받기
+3. **`start.bat` 더블클릭** — 브라우저에서 http://localhost:8000 이 열려요 (검은 창을 닫으면 종료)
 
-직접 실행:
+| 파일 | 용도 |
+|---|---|
+| `setup.bat` | 처음 설치 |
+| `start.bat` | 실행 (일반 사용) |
+| `dev.bat` | 개발 모드 — 화면 코드 수정 시 바로 반영 (Node.js 필요, http://localhost:5173) |
+
+### 실행 데이터 새로 배포하기 (개발자)
 ```bash
-python -m uvicorn api.main:app --port 8000   # API (문서: http://localhost:8000/docs)
-cd web && npm install && npm run dev         # 화면
+cd web && npm run build && cd ..
+python scripts/make_runtime_bundle.py      # → dist/afterbody-runtime.zip
 ```
+GitHub → Releases → 새 릴리스에 `afterbody-runtime.zip` 첨부 → 다른 PC 는 `setup.bat` 으로 최신본을 받음.
+(실행 묶음에는 국민건강영양조사 개인자료가 들어있지 않음: 음식 DB·참고표·학습된 모델 계수·화면만)
 
 ## 원본 데이터 (git에 포함되지 않음)
 
