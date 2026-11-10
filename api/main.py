@@ -1,0 +1,110 @@
+"""AfterBody API — 엔진을 웹 화면에서 부르는 창구.
+
+실행:  uvicorn api.main:app --reload --port 8000
+문서:  http://localhost:8000/docs  (자동 생성, 직접 눌러서 테스트 가능)
+"""
+import sqlite3
+from typing import Literal, Optional
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+from engine import DrinkInput, ExerciseInput, FoodInput, Person, Scenario, simulate
+from engine import config as C
+from engine.foods import lookup
+
+app = FastAPI(title="AfterBody API", version="0.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+                   allow_methods=["*"], allow_headers=["*"])
+
+
+# ── 요청 스키마 (엔진 dataclass와 1:1)
+class PersonIn(BaseModel):
+    sex: Literal[1, 2]
+    age: float = Field(ge=19, le=90)
+    height_cm: float = Field(ge=120, le=220)
+    weight_kg: float = Field(ge=30, le=250)
+    smoking: Literal["never", "former", "current"] = "never"
+    activity: Literal["비활동적", "저활동적", "활동적", "매우활동적"] = "저활동적"
+    sbp: Optional[float] = Field(default=None, ge=70, le=250)
+    usual_alcohol_g_per_day: float = Field(default=0, ge=0, le=500)
+
+
+class FoodIn(BaseModel):
+    query: str = Field(min_length=1, max_length=50)
+    grams: Optional[float] = Field(default=None, gt=0, le=5000)
+    choice: int = Field(default=0, ge=0, le=10)
+
+
+class DrinkIn(BaseModel):
+    name: str
+    servings: float = Field(default=1, gt=0, le=50)
+
+
+class ExerciseIn(BaseModel):
+    name: str
+    minutes: float = Field(gt=0, le=600)
+
+
+class ScenarioIn(BaseModel):
+    name: str = Field(max_length=40)
+    foods: list[FoodIn] = []
+    drinks: list[DrinkIn] = []
+    exercises: list[ExerciseIn] = []
+    start_hour: float = Field(default=19, ge=0, le=24)
+    drink_hours: float = Field(default=2, gt=0, le=12)
+    times_per_week: float = Field(default=1, ge=0, le=21)
+
+
+class SimulateIn(BaseModel):
+    person: PersonIn
+    scenarios: list[ScenarioIn] = Field(min_length=1, max_length=4)
+
+
+# ── 엔드포인트
+@app.get("/api/health")
+def health():
+    return {"ok": True}
+
+
+@app.get("/api/catalog")
+def catalog():
+    """화면의 선택 목록 (주류·운동)"""
+    con = sqlite3.connect(C.DB)
+    try:
+        drinks = [{"name": n, "unit": u, "ml": ml, "kcal": k} for n, u, ml, k in
+                  con.execute("SELECT name, serving_unit, serving_ml, serving_kcal FROM ref_alcohol")]
+        exercises = [{"name": n, "category": c, "met": m} for n, c, m in
+                     con.execute("SELECT name, category, met FROM ref_exercise WHERE category != '생활'")]
+    finally:
+        con.close()
+    return {"drinks": drinks, "exercises": exercises}
+
+
+@app.get("/api/foods/search")
+def food_search(q: str = Query(min_length=1, max_length=50)):
+    """음식 후보 (화면 자동완성용으로 필요한 필드만)"""
+    res = lookup(q)
+    return {"mode": res["mode"], "items": [
+        {"type": it["type"], "name": it["name"],
+         **({"unit": it["unit"], "kcal_per_100": it["kcal"]["med"] if it["kcal"] else None,
+             "portion_g": it["portion_g"]["med"] if it["portion_g"] else None,
+             "confidence": it["confidence"], "examples": it["examples"]} if it["type"] == "food"
+            else {"kcal": it["serving_kcal"], "unit": it["serving_unit"]})}
+        for it in res["items"]]}
+
+
+@app.post("/api/simulate")
+def run(body: SimulateIn):
+    p = Person(**body.person.model_dump())
+    scenarios = [Scenario(
+        name=s.name,
+        foods=[FoodInput(**f.model_dump()) for f in s.foods],
+        drinks=[DrinkInput(**d.model_dump()) for d in s.drinks],
+        exercises=[ExerciseInput(**e.model_dump()) for e in s.exercises],
+        start_hour=s.start_hour, drink_hours=s.drink_hours, times_per_week=s.times_per_week,
+    ) for s in body.scenarios]
+    if not any(s.foods or s.drinks or s.exercises for s in scenarios):
+        raise HTTPException(400, "시나리오에 음식·술·운동 중 하나 이상을 넣어 주세요.")
+    return simulate(p, scenarios, n_sim=400)

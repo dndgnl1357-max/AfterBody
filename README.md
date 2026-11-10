@@ -4,6 +4,18 @@
 
 음식·음주·운동 같은 행동을 하기 전에, 내 건강 상태를 기준으로 단기·장기 변화를 비교해 보여주는 서비스의 MVP 데이터·모델 저장소입니다.
 
+## 실행하기
+
+처음 한 번: `pip install -r requirements.txt` (Node.js 도 필요)
+
+**Windows: `start.bat` 더블클릭** → API 서버와 화면이 켜지고 브라우저가 열립니다 (http://localhost:5173).
+
+직접 실행:
+```bash
+python -m uvicorn api.main:app --port 8000   # API (문서: http://localhost:8000/docs)
+cd web && npm install && npm run dev         # 화면
+```
+
 ## 원본 데이터 (git에 포함되지 않음)
 
 용량이 크거나 재배포가 제한된 파일이므로 **각자 내려받아 저장소 루트(`C:\mediup` 등)에 그대로 두세요.**
@@ -69,4 +81,5 @@ simulate(me, [Scenario("치맥", foods=[FoodInput("치킨", 450)], drinks=[Drink
 - [ ] (선택) 국민건강영양조사 24시간 회상 원시자료(HN24_24RC)로 실제 1회 섭취량 산출
 - [x] 위험 예측 모델 학습 (고혈압·당뇨·이상지질혈증)
 - [x] 시뮬레이션 엔진
-- [ ] API (FastAPI) / 화면 (React)
+- [x] API (FastAPI) / 화면 (React + Recharts + Framer Motion)
+- [ ] 화면 피드백 반영

@@ -28,3 +28,7 @@ Thumbs.db
 
 # 모델 파일 (국민건강영양조사로 학습, 스크립트로 재생성)
 models/*.joblib
+
+# 웹
+web/node_modules/
+web/dist/

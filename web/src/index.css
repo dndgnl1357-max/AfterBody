@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --color-ink: #1f2430;
+  --color-mute: #6b7280;
+  --color-paper: #f7f5f1;
+  --color-card: #ffffff;
+  --color-line: #e7e3dc;
+  --color-brand: #3b5bdb;
+  --color-s0: #e8590c; /* 시나리오 1 */
+  --color-s1: #1c7ed6; /* 시나리오 2 */
+  --color-s2: #2f9e44; /* 시나리오 3 */
+}
+
+html, body { background: var(--color-paper); color: var(--color-ink); }
+input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
