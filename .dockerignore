@@ -3,4 +3,5 @@
 !engine/
 !api/
 !scripts/fetch_runtime.py
+!runtime/afterbody-runtime.zip
 **/__pycache__

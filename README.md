@@ -7,7 +7,7 @@
 ## 웹 배포 (Render)
 
 `Dockerfile` + `render.yaml` 포함. Render → **New → Blueprint** → 이 저장소 선택 → 자동 빌드·배포.
-빌드 시 GitHub Releases 최신 `afterbody-runtime.zip` 을 내려받으므로 **릴리스가 먼저 있어야 함**.
+빌드 시 저장소의 `runtime/afterbody-runtime.zip` 사용. 푸시하면 자동 재배포.
 서버는 사용자 입력·사진을 저장하지 않음 (요청마다 계산만 하고 버림).
 
 ## 실행하기 (다른 PC 포함)
@@ -15,7 +15,7 @@
 **준비물: Python 3.11 이상** (설치할 때 "Add python.exe to PATH" 체크). Node.js 는 필요 없어요.
 
 1. 이 저장소를 내려받기 — GitHub 초록색 **Code → Download ZIP** 후 압축 풀기 (또는 `git clone`)
-2. **`setup.bat` 더블클릭** (처음 한 번) — 파이썬 패키지 설치 + 실행 데이터(DB·모델·화면, 약 17MB) 내려받기
+2. **`setup.bat` 더블클릭** (처음 한 번) — 파이썬 패키지 설치 + 실행 데이터(DB·모델·화면) 풀기
 3. **`start.bat` 더블클릭** — 브라우저에서 http://localhost:8000 이 열려요 (검은 창을 닫으면 종료)
 
 | 파일 | 용도 |
@@ -27,9 +27,9 @@
 ### 실행 데이터 새로 배포하기 (개발자)
 ```bash
 cd web && npm run build && cd ..
-python scripts/make_runtime_bundle.py      # → dist/afterbody-runtime.zip
+python scripts/make_runtime_bundle.py      # → runtime/afterbody-runtime.zip
 ```
-GitHub → Releases → 새 릴리스에 `afterbody-runtime.zip` 첨부 → 다른 PC 는 `setup.bat` 으로 최신본을 받음.
+커밋·푸시하면 Render 가 자동 재배포. 다른 PC 는 저장소를 다시 받아 `setup.bat` 실행.
 (실행 묶음에는 국민건강영양조사 개인자료가 들어있지 않음: 음식 DB·참고표·학습된 모델 계수·화면만)
 
 ## 원본 데이터 (git에 포함되지 않음)

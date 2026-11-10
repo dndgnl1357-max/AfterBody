@@ -6,7 +6,7 @@
          web/dist/ (빌드된 화면 → Node.js 없이 Python 서버가 바로 제공)
 
 사용:  cd web && npm run build && cd ..  →  python scripts/make_runtime_bundle.py
-결과 zip 을 GitHub Releases 에 올리면 setup.bat 이 내려받는다.
+결과 zip 을 커밋·푸시하면 Render 가 자동 재배포하고, setup.bat 도 이 파일을 쓴다.
 """
 import sqlite3
 import sys
@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "data" / "nutrition.db"
 DST = ROOT / "data" / "runtime.db"
-OUT = ROOT / "dist" / "afterbody-runtime.zip"
+OUT = ROOT / "runtime" / "afterbody-runtime.zip"   # 저장소에 포함 (Render·setup.bat 이 사용)
 
 FOOD_COLS = ["foodCd", "foodNm", "dataCd", "foodLv3Nm", "foodLv4Cd", "foodLv4Nm", "nutConSrtrQua",
              "foodSize", "servSize", "enerc", "chocdf", "sugar", "prot", "fatce", "nat"]

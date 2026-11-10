@@ -1,6 +1,6 @@
 """실행 묶음(afterbody-runtime.zip)을 내려받아 저장소 루트에 푼다. Docker 빌드에서 사용.
 
-사용: python scripts/fetch_runtime.py [URL]   (기본: GitHub Releases 최신본)
+사용: python scripts/fetch_runtime.py [파일경로 또는 URL]   (기본: GitHub Releases 최신본)
 """
 import io
 import sys
@@ -15,9 +15,12 @@ REQUIRED = ["data/runtime.db", "models/risk_htn.joblib", "models/risk_dm.joblib"
 
 
 def main(url=DEFAULT_URL):
-    print(f"내려받는 중: {url}")
-    with urllib.request.urlopen(url, timeout=120) as r:
-        data = r.read()
+    if Path(url).exists():                      # 저장소에 들어있는 묶음
+        data = Path(url).read_bytes()
+    else:
+        print(f"내려받는 중: {url}")
+        with urllib.request.urlopen(url, timeout=120) as r:
+            data = r.read()
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         names = set(z.namelist())
         missing = [f for f in REQUIRED if f not in names]
