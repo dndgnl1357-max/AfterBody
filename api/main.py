@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field
 
 from engine import DrinkInput, ExerciseInput, FoodInput, MealInput, Person, Scenario, simulate
 from engine import config as C
+from engine.ask import ask
 from engine.foods import lookup
+from engine.recommend import recommend
 
 app = FastAPI(title="AfterBody API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -108,8 +110,7 @@ def food_search(q: str = Query(min_length=1, max_length=50)):
         for it in res["items"]]}
 
 
-@app.post("/api/simulate")
-def run(body: SimulateIn):
+def _to_engine(body: SimulateIn):
     p = Person(**body.person.model_dump())
     scenarios = [Scenario(
         name=s.name,
@@ -121,7 +122,27 @@ def run(body: SimulateIn):
         meals={slot: MealInput(m.mode, [FoodInput(**f.model_dump()) for f in m.foods], m.hour)
                for slot, m in s.meals.items()},
     ) for s in body.scenarios]
+    return p, scenarios
+
+
+@app.post("/api/simulate")
+def run(body: SimulateIn):
+    p, scenarios = _to_engine(body)
     return simulate(p, scenarios, n_sim=400)
+
+
+@app.post("/api/recommend")
+def recommend_tips(body: SimulateIn):
+    """선택지마다 효과 큰 대안 최대 3개 (+ 모두 적용 시 효과)"""
+    p, scenarios = _to_engine(body)
+    return {"results": recommend(p, scenarios)}
+
+
+@app.get("/api/ask")
+def ask_coach(q: str = Query(min_length=1, max_length=100), weight: float = Query(65, ge=30, le=250),
+              sex: Literal[1, 2] = 1):
+    """바디쌤: 음식 영양성분·운동·술·건강 상식 질문 (AI 미사용, DB 기반)"""
+    return ask(q, weight, sex)
 
 
 # 빌드된 화면(web/dist)이 있으면 http://localhost:8000 에서 바로 열림 (Node.js 불필요)

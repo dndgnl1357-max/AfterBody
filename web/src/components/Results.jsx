@@ -58,7 +58,38 @@ function mood(r, h) {
 }
 
 // ── 미래의 나 (메인)
-function Future({ data, look }) {
+/** 추천: 효과 큰 순서 최대 3개 + 모두 적용 */
+function Tips({ rec, i, onApply }) {
+  if (!rec) return <p className="mt-4 text-xs text-mute">추천 계산 중…</p>;
+  if (!rec.tips.length) return <p className="mt-4 rounded-2xl bg-paper px-3 py-2 text-xs text-mute">지금 선택도 충분히 좋아요. 이대로 유지해 보세요!</p>;
+  const eff = (e) => `1년 뒤 ${signed(e.weight_kg)}kg${Math.abs(e.sbp) >= 0.5 ? ` · 혈압 ${signed(e.sbp)}` : ""}`;
+  return (
+    <div className="mt-4 w-full text-left">
+      <p className="mb-1.5 text-sm font-semibold">💡 이렇게 바꿔 보면</p>
+      <ul className="flex flex-col gap-1.5">
+        {rec.tips.map((t, k) => (
+          <li key={k} className="flex items-center gap-2 rounded-2xl bg-paper px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">{t.title}</p>
+              <p className="text-[11px] text-mute">{t.detail}</p>
+              <p className="text-xs font-semibold text-green-700">{eff(t.effect)}</p>
+            </div>
+            <button onClick={() => onApply(i, [t.apply])}
+              className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold text-white" style={{ background: INK[i] }}>적용</button>
+          </li>
+        ))}
+      </ul>
+      {rec.combined && (
+        <button onClick={() => onApply(i, rec.combined.applies)}
+          className="mt-2 w-full rounded-2xl border-2 border-dashed px-3 py-2 text-xs" style={{ borderColor: INK[i], color: INK[i] }}>
+          <b>모두 적용하면</b> 1년 뒤 {signed(rec.combined.effect.weight_after_kg)}kg ({eff(rec.combined.effect).replace("1년 뒤 ", "지금보다 ")}) →
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Future({ data, look, recs, onApply }) {
   const [h, setH] = useState(2);
   const ref = data.person.bmi;
   return (
@@ -94,7 +125,7 @@ function Future({ data, look }) {
                   <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 bg-paper" />
                 </motion.div>
               </AnimatePresence>
-              <Character bmi={bmi} refBmi={ref} color={COLORS[i]} skin={look.skin} photo={look.photo}
+              <Character bmi={bmi} refBmi={ref} color={COLORS[i]} hair={look.hair} photo={look.photo}
                 mood={m} props={{ ...props, sweat: m === "tired" }} delay={i * 0.4} />
               <p className="font-display text-xl" style={{ color: INK[i] }}>{r.scenario}</p>
               <p className="text-xs text-mute">일주일에 {r.times_per_week}번</p>
@@ -116,11 +147,12 @@ function Future({ data, look }) {
                   </span>
                 </div>
               )}
+              <Tips rec={recs?.[i]} i={i} onApply={onApply} />
             </div>
           );
         })}
       </div>
-      <p className="mt-6 text-center text-[11px] text-mute">캐릭터 몸 변화는 눈에 잘 보이게 과장했어요. 숫자가 실제 추정값이에요.</p>
+      <p className="mt-6 text-center text-[11px] text-mute">아바타 몸 변화는 눈에 잘 보이게 과장했어요. 숫자가 실제 추정값이에요.</p>
     </Card>
   );
 }
@@ -239,27 +271,41 @@ function AlcoholChart({ results }) {
   );
 }
 
-export default function Results({ data, look }) {
+const TABS = [["future", "미래의 나 · 추천"], ["day", "그 하루 자세히"], ["how", "계산 근거"]];
+
+export default function Results({ data, look, recs, onApply }) {
+  const [tab, setTab] = useState("future");
   const warnings = [...new Set(data.results.flatMap((r) => r.warnings))];
   return (
-    <div className="flex flex-col gap-5">
-      <Future data={data} look={look} />
-      <h2 className="font-display mt-6 text-2xl">그 하루만 놓고 보면</h2>
-      <div className="grid gap-4 md:grid-cols-3">
-        {data.results.map((r, i) => <DayCard key={i} r={r} i={i} />)}
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-1 rounded-full bg-white p-1 ring-1 ring-line self-start" role="tablist">
+        {TABS.map(([k, t]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={`rounded-full px-4 py-2 text-sm transition ${tab === k ? "bg-ink text-white" : "text-mute"}`}>{t}</button>
+        ))}
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <GlucoseChart results={data.results} />
-        <AlcoholChart results={data.results} />
-      </div>
-      <details className="rounded-3xl bg-card p-5 text-sm ring-1 ring-line">
-        <summary className="cursor-pointer font-semibold">이 숫자들, 어떻게 나왔어요?</summary>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-mute">
-          <li>하루 필요 열량 {data.person.eer_kcal.toLocaleString()}kcal — {data.person.energy_source}</li>
-          {data.assumptions.map((a) => <li key={a}>{a}</li>)}
-          {warnings.map((w) => <li key={w} className="text-amber-700">{w}</li>)}
-        </ul>
-      </details>
+      {tab === "future" && <Future data={data} look={look} recs={recs} onApply={onApply} />}
+      {tab === "day" && (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            {data.results.map((r, i) => <DayCard key={i} r={r} i={i} />)}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <GlucoseChart results={data.results} />
+            <AlcoholChart results={data.results} />
+          </div>
+        </>
+      )}
+      {tab === "how" && (
+        <Card className="text-sm">
+          <h3 className="font-display text-xl">이 숫자들, 어떻게 나왔어요?</h3>
+          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-mute">
+            <li>하루 필요 열량 {data.person.eer_kcal.toLocaleString()}kcal — {data.person.energy_source}</li>
+            {data.assumptions.map((a) => <li key={a}>{a}</li>)}
+            {warnings.map((w) => <li key={w} className="text-amber-700">{w}</li>)}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

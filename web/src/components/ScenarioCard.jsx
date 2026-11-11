@@ -31,8 +31,7 @@ function FoodRow({ food, onChange, onRemove }) {
     <div className="relative">
       <div className="flex items-center gap-1.5">
         <input className={inputCls} value={food.query} placeholder="아무 음식이나 (예: 마라탕)"
-          onChange={(e) => onChange({ ...food, query: e.target.value, choice: 0 })}
-          onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+          onChange={(e) => { setOpen(false); onChange({ ...food, query: e.target.value, choice: 0 }); }} />
         <input type="number" className={`${inputCls} w-20`} value={food.grams ?? ""} min={1}
           placeholder={picked?.portion_g ? String(Math.round(picked.portion_g)) : "g"}
           onChange={(e) => onChange({ ...food, grams: e.target.value ? Number(e.target.value) : null })} />
@@ -40,9 +39,14 @@ function FoodRow({ food, onChange, onRemove }) {
         <RemoveBtn onClick={onRemove} />
       </div>
       {picked && (
-        <p className="mt-0.5 pl-1 text-xs text-mute">
-          → {picked.name} · {picked.kcal_per_100}kcal/{picked.unit}
-          {picked.confidence === "낮음" && <span className="ml-1 text-amber-600">(정확도 낮음)</span>}
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 pl-1 text-xs text-mute">
+          <span>→ {picked.name} · {picked.kcal_per_100}kcal/{picked.unit}</span>
+          {picked.confidence === "낮음" && <span className="text-amber-600">(정확도 낮음)</span>}
+          {cands?.mode === "choose" && items.length > 1 && (
+            <button type="button" className="text-brand underline" onClick={() => setOpen(!open)}>
+              {open ? "접기" : `이게 아니면 다른 후보 ${items.length - 1}개`}
+            </button>
+          )}
         </p>
       )}
       {cands?.mode === "combo" && <p className="mt-0.5 pl-1 text-xs text-mute">→ 조합: {items.map((i) => i.name).join(" + ")}</p>}
@@ -51,7 +55,7 @@ function FoodRow({ food, onChange, onRemove }) {
         <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-line">
           {items.map((it, i) => (
             <li key={i}>
-              <button type="button" onMouseDown={() => onChange({ ...food, choice: i })}
+              <button type="button" onClick={() => { onChange({ ...food, choice: i }); setOpen(false); }}
                 className={`w-full px-3 py-2 text-left text-sm hover:bg-paper ${i === food.choice ? "font-semibold" : ""}`}>
                 {it.name} <span className="text-xs text-mute">{it.kcal_per_100}kcal/{it.unit} · {it.examples?.[0]}</span>
               </button>

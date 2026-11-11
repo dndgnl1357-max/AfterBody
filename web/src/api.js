@@ -17,3 +17,11 @@ export const runSimulation = (person, scenarios) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ person, scenarios }),
   });
+export const getRecommend = (person, scenarios) =>
+  request("/api/recommend", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ person, scenarios }),
+  });
+export const askCoach = (q, weight, sex) =>
+  request(`/api/ask?q=${encodeURIComponent(q)}&weight=${encodeURIComponent(weight || 65)}&sex=${sex || 1}`);

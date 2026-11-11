@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import Character, { SKINS } from "./Character";
+import Character, { HAIRS } from "./Character";
 
 /** 사진을 256px로 줄여 dataURL로 (서버로 보내지 않고 브라우저에만 저장) */
 function shrink(file) {
@@ -22,12 +22,12 @@ export default function CharacterPicker({ look, onChange, bmi }) {
   const fileRef = useRef();
   return (
     <div className="flex flex-col items-center gap-3">
-      <Character bmi={bmi} refBmi={bmi} color="#ffc9a9" skin={look.skin} photo={look.photo} mood="happy" size={130} />
-      <div className="flex gap-1.5">
-        {SKINS.map((s) => (
-          <button key={s.id} type="button" onClick={() => onChange({ ...look, skin: s.id })}
-            className={`rounded-full px-3 py-1 text-sm transition ${look.skin === s.id ? "bg-ink text-white" : "bg-white ring-1 ring-line"}`}>
-            {s.label}
+      <Character bmi={bmi} refBmi={bmi} color="#ffc9a9" hair={look.hair} photo={look.photo} mood="happy" size={120} />
+      <div className="flex flex-wrap justify-center gap-1">
+        {HAIRS.map((h) => (
+          <button key={h.id} type="button" onClick={() => onChange({ ...look, hair: h.id })}
+            className={`rounded-full px-2.5 py-1 text-xs transition ${look.hair === h.id ? "bg-ink text-white" : "bg-white ring-1 ring-line"}`}>
+            {h.label}
           </button>
         ))}
       </div>

@@ -1,3 +1,4 @@
+import { EXERCISE_WEEK, JOBS, activityOf } from "../presets";
 import CharacterPicker from "./CharacterPicker";
 
 const Field = ({ label, children, hint }) => (
@@ -41,16 +42,32 @@ export default function PersonCard({ person, onChange, look, onLook }) {
             <option value="never">비흡연</option><option value="former">과거 흡연</option><option value="current">현재 흡연</option>
           </select>
         </Field>
-        <Field label="평소 활동량">
-          <select className={inputCls} value={person.activity} onChange={set("activity")}>
-            {["비활동적", "저활동적", "활동적", "매우활동적"].map((a) => <option key={a}>{a}</option>)}
-          </select>
-        </Field>
         <Field label="혈압 (선택)" hint="검진표의 윗 숫자">
           <input type="number" className={inputCls} value={person.sbp} onChange={set("sbp")} placeholder="예: 125" />
         </Field>
       </div>
-      <details className="mt-4 rounded-2xl bg-paper px-4 py-3" open={!!person.bmr_kcal}>
+      <div className="mt-4 rounded-2xl bg-paper px-4 py-3">
+        <p className="text-sm font-semibold">🚶 평소 얼마나 움직여요?</p>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Field label="하루 평균 걸음 수 (알면)" hint="휴대폰 건강 앱 → 걸음 수 주간 평균">
+            <input type="number" className={inputCls} value={person.steps ?? ""} onChange={set("steps")} placeholder="예: 6500" min={0} step={500} />
+          </Field>
+          <Field label="일할 때 (또는 하루 대부분)">
+            <select className={inputCls} value={person.job ?? "sit"} onChange={set("job")}>
+              {JOBS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="일주일 운동 (숨 찰 정도 이상)">
+            <select className={inputCls} value={person.exercise_week ?? "none"} onChange={set("exercise_week")}>
+              {EXERCISE_WEEK.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </Field>
+        </div>
+        {(() => { const a = activityOf(person); return (
+          <p className="mt-2 text-xs text-mute">→ 활동 수준 <b className="text-ink">{a.level}</b>으로 계산해요 · {a.reason}</p>
+        ); })()}
+      </div>
+      <details className="mt-3 rounded-2xl bg-paper px-4 py-3" open={!!person.bmr_kcal}>
         <summary className="cursor-pointer text-sm font-semibold">📋 인바디 결과지 있어요 <span className="font-normal text-mute">(선택 · 넣으면 더 정확해져요)</span></summary>
         <div className="mt-3 grid grid-cols-3 gap-3">
           <Field label="기초대사량 (kcal)" hint="가장 중요해요">

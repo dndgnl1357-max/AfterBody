@@ -5,7 +5,27 @@ export const INK = ["#e8590c", "#1c7ed6", "#2f9e44"];  // 글자·선 색 (진�
 export const DEFAULT_PERSON = {
   sex: 1, age: 35, height_cm: 174, weight_kg: 78, smoking: "never", activity: "저활동적", sbp: "",
   bmr_kcal: "", body_fat_pct: "", skeletal_muscle_kg: "",
+  steps: "", job: "sit", exercise_week: "none",
 };
+
+// ── 활동 수준을 주관적 선택 대신 객관적 질문으로 판정
+export const JOBS = [["sit", "주로 앉아서 (사무직·학생)"], ["stand", "서 있거나 자주 돌아다님"], ["labor", "몸을 많이 쓰는 일"]];
+export const EXERCISE_WEEK = [["none", "거의 안 함"], ["low", "1~2시간"], ["mid", "2시간 반~5시간"], ["high", "5시간 넘게"]];
+const LEVELS = ["비활동적", "저활동적", "활동적", "매우활동적"];
+
+/** 걸음 수가 있으면 Tudor-Locke(2004) 걸음 수 기준, 없으면 일 방식 + WHO 권장 운동량(주 150~300분) 기준 */
+export function activityOf(p) {
+  const steps = Number(p.steps) || 0;
+  const ex = { none: 0, low: 0, mid: 1, high: 2 }[p.exercise_week ?? "none"];
+  if (steps > 0) {
+    let lv = steps < 5000 ? 0 : steps < 7500 ? 1 : steps < 12500 ? 2 : 3;
+    if (ex === 2 && lv < 3) lv += 1;         // 걸음 수에 안 잡히는 운동(수영·자전거 등)을 많이 하면 한 단계 위
+    return { level: LEVELS[lv], reason: `하루 ${steps.toLocaleString()}보${ex === 2 ? " + 주 5시간 넘는 운동" : ""} 기준` };
+  }
+  const job = { sit: 0, stand: 1, labor: 2 }[p.job ?? "sit"];
+  const lv = Math.min(3, job + ex);
+  return { level: LEVELS[lv], reason: "걸음 수를 넣으면 더 정확해요" };
+}
 
 // 끼니 (엔진 engine/config.py MEAL_SLOTS 와 같은 값)
 export const MEALS = {

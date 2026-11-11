@@ -141,5 +141,34 @@ class TestSimulate(unittest.TestCase):
         self.assertTrue(out["results"][0]["warnings"])
 
 
+class TestCoachAndTips(unittest.TestCase):
+    def test_ask_food_nutrient(self):
+        from engine.ask import ask
+        r = ask("떡볶이 나트륨", 70, 1)
+        self.assertIn("떡볶이", r["answer"])
+        self.assertIn("나트륨이", r["answer"])
+
+    def test_ask_exercise_uses_weight(self):
+        from engine.ask import ask
+        a, b = ask("30분 걷기 칼로리", 60, 1)["answer"], ask("30분 걷기 칼로리", 90, 1)["answer"]
+        self.assertNotEqual(a, b)
+
+    def test_ask_drink_and_faq_and_unknown(self):
+        from engine.ask import ask
+        self.assertIn("1병은", ask("소주 1병", 70, 1)["answer"])
+        self.assertIn("2,300mg", ask("나트륨 하루 권장량", 70, 1)["answer"])
+        self.assertIn("아침을 거르면", ask("아침 거르면 어때?", 70, 1)["answer"])
+        self.assertIn("모르겠", ask("ㅁㄴㅇㄹ", 70, 1)["answer"])
+
+    def test_recommend_helps(self):
+        from engine.recommend import recommend
+        out = recommend(ME, [Scenario("치맥", meals={"dinner": MealInput("custom", [FoodInput("치킨", 450)])},
+                                      drinks=[DrinkInput("생맥주 500cc", 2)], times_per_week=2)], n_sim=80)
+        tips = out[0]["tips"]
+        self.assertTrue(tips)
+        self.assertTrue(all(t["effect"]["weight_kg"] <= 0 for t in tips))
+        self.assertLess(out[0]["combined"]["effect"]["weight_kg"], tips[0]["effect"]["weight_kg"])
+
+
 if __name__ == "__main__":
     unittest.main()
