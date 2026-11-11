@@ -140,7 +140,7 @@ def recommend_tips(body: SimulateIn):
 
 @app.get("/api/ask")
 def ask_coach(q: str = Query(min_length=1, max_length=100), weight: float = Query(65, ge=30, le=250),
-              sex: Literal[1, 2] = 1):
+              sex: int = Query(1, ge=1, le=2)):
     """바디쌤: 음식 영양성분·운동·술·건강 상식 질문 (AI 미사용, DB 기반)"""
     return ask(q, weight, sex)
 

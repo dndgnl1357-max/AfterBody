@@ -142,6 +142,13 @@ class TestSimulate(unittest.TestCase):
 
 
 class TestCoachAndTips(unittest.TestCase):
+    def test_ask_api_query_params(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+        r = TestClient(app).get("/api/ask", params={"q": "김밥 칼로리", "weight": 58, "sex": 2})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("answer", r.json())
+
     def test_ask_food_nutrient(self):
         from engine.ask import ask
         r = ask("떡볶이 나트륨", 70, 1)
