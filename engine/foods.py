@@ -66,7 +66,8 @@ def food_profile(con, dataCd, lv4cd=None, lv4nm=None, inc=None, exc=None, match=
         return None
     # 기준량이 섞여 있으면(100g / 100ml) 많은 쪽만 사용
     units = [_norm(r["nutConSrtrQua"]) for r in rows]
-    unit = max(set(units), key=units.count)
+    # g 기준이 3건 이상이면 g 우선 (김밥처럼 일부만 ml로 측정된 음식), 국·음료처럼 대부분 ml이면 ml
+    unit = "100g" if units.count("100g") >= 3 else max(set(units), key=units.count)
     rows = [r for r, u in zip(rows, units) if u == unit]
 
     prof = {"type": "food", "dataCd": dataCd, "name": rows[0]["foodLv4Nm"], "unit": unit,
