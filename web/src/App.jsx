@@ -35,7 +35,7 @@ export default function App() {
   const [look, setLook] = useState(() => {
     const l = load("ab.look", {});
     return { hair: l.hair ?? (load("ab.person", DEFAULT_PERSON).sex === 2 ? "long" : "short"), photo: l.photo ?? null,
-      features: l.features ?? null, usePhoto: l.usePhoto ?? (!!l.photo && !l.features), note: null };
+      photoKind: l.photoKind ?? "circle", usePhoto: l.usePhoto ?? !!l.photo, note: null };
   });
   const [step, setStep] = useState(0);
   const [catalog, setCatalog] = useState(null);

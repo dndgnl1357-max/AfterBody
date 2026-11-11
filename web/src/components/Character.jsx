@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { STICKER } from "../faceAnalyze";
 
 /**
  * 사람 아바타. BMI에 따라 몸통·얼굴 폭이 변하고, 결과에 따라 표정·소품이 바뀐다.
@@ -54,7 +55,7 @@ function Face({ mood, blush, eye = 1, hairColor = HAIR }) {
   );
 }
 
-export default function Character({ bmi, refBmi, color, hair = "short", photo, features, mood = "meh", props = {}, delay = 0, size = 170 }) {
+export default function Character({ bmi, refBmi, color, hair = "short", photo, photoKind = "circle", features, mood = "meh", props = {}, delay = 0, size = 170 }) {
   const skin = features?.skin ?? SKIN;
   const hairColor = features?.hair ?? HAIR;
   const shape = features?.faceRatio ?? 1;     // 사진에서 측정한 얼굴형 (1 = 보통)
@@ -95,7 +96,17 @@ export default function Character({ bmi, refBmi, color, hair = "short", photo, f
       <path d="M72 76 Q80 84 88 76" stroke="#fff" strokeOpacity="0.5" strokeWidth="2" fill="none" />
 
       {/* 머리 */}
-      {photo ? (
+      {photo && photoKind === "cutout" ? (() => {
+        // 오려 낸 내 얼굴(머리카락 포함): 얼굴 중심 → (80, 46)
+        const k = 52 / STICKER.faceW;       // 그림 머리(44)보다 조금 크게 → 얼굴이 잘 보이는 캐릭터 비율
+        return (
+          <g>
+            <motion.image href={photo} x={80 - STICKER.cx * k} y={46 - STICKER.cy * k} width={STICKER.w * k} height={STICKER.h * k}
+              animate={{ scaleX: face }} style={{ transformOrigin: "80px 46px", filter: "drop-shadow(0 0 0.6px #3b2f2f)" }} transition={spring} />
+            {props.beer && <><ellipse cx="68" cy="54" rx="5" ry="3" fill="#ff6b6b" opacity="0.35" /><ellipse cx="92" cy="54" rx="5" ry="3" fill="#ff6b6b" opacity="0.35" /></>}
+          </g>
+        );
+      })() : photo ? (
         <g>
           <circle cx="80" cy="46" r="24" fill="#fff" />
           <motion.image href={photo} x="58" y="24" width="44" height="44" clipPath={`url(#${id})`}
