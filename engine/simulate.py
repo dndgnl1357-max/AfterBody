@@ -1,8 +1,9 @@
 """AfterBody 시뮬레이션 엔진 — 시나리오(먹고·마시고·움직인 것) → 오늘의 변화 + 반복 시 장기 변화.
 
 설계 요약
-  오늘   : 영양 합계(음식 DB 분포), 혈당 부하(GI), 혈중알코올 곡선(Widmark), 운동 소모(MET), 재미 환산
-  장기   : '기준 저녁'(하루 필요열량의 1/3) 대비 에너지 차이 × 주당 반복 횟수
+  하루   : 식사(아침·점심·저녁·간식: 평소대로/직접 입력/거름) + 음주 + 운동을 따로 입력
+           → 끼니별 영양(음식 DB 분포), 하루 혈당 흐름(GI), 혈중알코올 곡선(Widmark), 운동 소모(MET)
+  장기   : '평소대로 먹은 하루'(= 하루 필요열량) 대비 에너지 차이 × 주당 반복 횟수
            → 체중 변화(Hall 2011) → BMI → 질환 유병 확률(KNHANES 모델)
            → 혈압 변화(체중·나트륨·절주·운동, RCT 메타분석) → 심혈관 상대위험(Ettehad 2016)
   불확실성: 몬테카를로. 음식 영양값·1회량은 DB 분포(p10–중앙–p90 삼각분포), 효과크기는 95% CI 정규분포.
@@ -66,17 +67,28 @@ class DrinkInput:
 class ExerciseInput:
     name: str                        # ref_exercise 이름 또는 일부 ("걷기 빠르게")
     minutes: float
+    hour: Optional[float] = None     # 운동 시각 (타임라인 표시용)
+
+
+@dataclass
+class MealInput:
+    mode: str = "usual"              # usual 평소대로 / custom 직접 입력 / skip 거름
+    foods: list = field(default_factory=list)
+    hour: Optional[float] = None     # 없으면 끼니 기본 시각
 
 
 @dataclass
 class Scenario:
+    """하루 하나. meals: {"breakfast"|"lunch"|"dinner"|"snack": MealInput} — 빠진 끼니는 '평소대로'."""
     name: str
-    foods: list = field(default_factory=list)
+    foods: list = field(default_factory=list)   # (이전 방식) 저녁에 먹은 음식으로 처리
     drinks: list = field(default_factory=list)
     exercises: list = field(default_factory=list)
-    start_hour: float = 19.0         # 먹기 시작한 시각
-    drink_hours: float = 2.0         # 술 마신 시간
-    times_per_week: float = 1.0      # 장기 예측: 이 선택을 주 몇 번 반복하는가
+    start_hour: float = 19.0                    # (이전 방식) 저녁 시각
+    drink_hours: float = 2.0                    # 술 마신 시간
+    times_per_week: float = 1.0                 # 이런 날이 일주일에 몇 번인가 (나머지 날은 평소대로)
+    meals: dict = field(default_factory=dict)
+    drink_start_hour: Optional[float] = None
 
 
 # ──────────────────────────────────────────────────────────────── 보조
@@ -150,7 +162,8 @@ def simulate(person: Person, scenarios, n_sim=500, seed=0, horizons_days=(90, 36
                    "risk_now": {k: round(v * 100, 1) for k, v in base_probs.items()}},
         "results": results,
         "assumptions": [
-            "장기 변화는 '하루 필요열량의 1/3을 먹는 균형 잡힌 저녁'과 비교한 값입니다.",
+            "'평소대로' 끼니는 하루 필요열량 중 아침 25%·점심 35%·저녁 35%·간식 5%를 먹은 것으로 가정합니다.",
+            "장기 변화는 이런 날(주 N회)을 '끼니를 모두 평소대로 먹고 술·운동이 없는 하루'와 비교한 값입니다.",
             "체중 변화: 하루 약 24 kcal 차이가 지속되면 최종 약 1 kg, 그 절반은 약 1년에 걸쳐 나타남 (Hall 2011).",
             "질환 확률은 국민건강영양조사 2024의 '같은 조건 사람들 중 비율'이며 발병 예언이 아닙니다.",
             "혈압 변화는 무작위대조시험 메타분석 효과크기를 사용했습니다.",
@@ -159,14 +172,14 @@ def simulate(person: Person, scenarios, n_sim=500, seed=0, horizons_days=(90, 36
     }
 
 
-def _run(con, person, sc, eer, sodium_limit, rice_kcal, base_probs, rng, n, horizons):
-    warnings, resolved = [], []
-    tot = {k: np.zeros(n) for k in ("kcal", "carb_g", "sugar_g", "fat_g", "protein_g", "sodium_mg")}
-    gl_items, confidences = [], []
-    drinks = list(sc.drinks)
+NUTRIENTS = ("kcal", "carb_g", "fat_g", "protein_g", "sodium_mg")
 
-    # 음식
-    for f in sc.foods:
+
+def _eat(con, foods, rng, n, warnings, resolved, drinks, confidences, slot):
+    """직접 입력한 한 끼 → (영양소별 표본 배열, [(탄수화물 g, GI)])"""
+    tot = {k: np.zeros(n) for k in NUTRIENTS}
+    gl_items = []
+    for f in foods:
         res = lookup(f.query, con)
         if not res["items"]:
             warnings.append(f"'{f.query}'를 찾지 못해 계산에서 제외했습니다.")
@@ -184,15 +197,70 @@ def _run(con, person, sc, eer, sodium_limit, rice_kcal, base_probs, rng, n, hori
             else:
                 grams = np.full(n, 100.0)
                 warnings.append(f"'{it['name']}' 섭취량 정보가 없어 100 g으로 계산했습니다.")
-            for k in tot:
+            for k in NUTRIENTS:
                 tot[k] += _sample(u, it[k]) * grams / 100
             carb_med = (it["carb_g"]["med"] if it["carb_g"] else 0) * float(np.median(grams)) / 100
             gl_items.append((carb_med, it["gi"]))
             confidences.append(it["confidence"])
-            resolved.append({"type": "food", "query": f.query, "name": it["name"], "grams": round(float(np.median(grams))),
-                             "unit": it["unit"], "confidence": it["confidence"], "kcal_per_100": it["kcal"]["med"]})
+            resolved.append({"type": "food", "meal": slot, "query": f.query, "name": it["name"],
+                             "grams": round(float(np.median(grams))), "unit": it["unit"],
+                             "confidence": it["confidence"], "kcal_per_100": it["kcal"]["med"]})
+    return tot, gl_items
 
-    # 술
+
+def _meals_of(sc):
+    """시나리오 → 끼니 4칸 (빠진 칸은 평소대로). 이전 방식(foods)은 저녁 직접 입력으로 변환."""
+    meals = dict(sc.meals)
+    if sc.foods and "dinner" not in meals:
+        meals["dinner"] = MealInput("custom", list(sc.foods), sc.start_hour)
+    out = {}
+    for slot, (label, share, hour) in C.MEAL_SLOTS.items():
+        m = meals.get(slot) or MealInput()
+        mode = m.mode if m.mode in ("usual", "custom", "skip") else "usual"
+        if mode == "custom" and not m.foods:
+            mode = "usual"
+        out[slot] = (label, share, m.hour if m.hour is not None else hour, mode, m.foods)
+    return out
+
+
+def _run(con, person, sc, eer, sodium_limit, rice_kcal, base_probs, rng, n, horizons):
+    warnings, resolved, confidences = [], [], []
+    drinks = list(sc.drinks)
+    tot = {k: np.zeros(n) for k in NUTRIENTS}
+    entered_kcal = np.zeros(n)                    # 사용자가 직접 넣은 음식·술만 (재미 환산용)
+    meal_rows, glucose_events, gi_est, peak = [], [], False, (0.0, None)
+
+    # 식사 (아침·점심·저녁·간식)
+    for slot, (label, share, hour, mode, foods) in _meals_of(sc).items():
+        if mode == "custom":
+            m_tot, gl_items = _eat(con, foods, rng, n, warnings, resolved, drinks, confidences, slot)
+            gl, level, est = P.glycemic_load(gl_items)
+            gi_est |= est
+            entered_kcal += m_tot["kcal"]
+            if gl > peak[0]:
+                peak = (gl, label)
+        elif mode == "usual":
+            kcal = share * eer
+            m_tot = {"kcal": np.full(n, kcal), "sodium_mg": np.full(n, share * sodium_limit),
+                     "carb_g": np.full(n, kcal * C.USUAL_ENERGY_SHARE["carb"] / 4),
+                     "protein_g": np.full(n, kcal * C.USUAL_ENERGY_SHARE["protein"] / 4),
+                     "fat_g": np.full(n, kcal * C.USUAL_ENERGY_SHARE["fat"] / 9)}
+            gl = C.DEFAULT_GI * float(m_tot["carb_g"][0]) / 100
+            level = None
+        else:
+            m_tot, gl, level = {k: np.zeros(n) for k in NUTRIENTS}, 0.0, None
+        for k in NUTRIENTS:
+            tot[k] += m_tot[k]
+        if gl > 0:
+            glucose_events.append((hour, gl))
+        meal_rows.append({"slot": slot, "label": label, "mode": mode, "hour": hour,
+                          "kcal": _pct(m_tot["kcal"], 0), "sodium_mg": round(float(np.median(m_tot["sodium_mg"]))),
+                          "glycemic_load": round(gl, 1), "glycemic_level": level,
+                          "items": [r["name"] for r in resolved if r.get("meal") == slot]})
+    if gi_est:
+        warnings.append("혈당지수가 측정되지 않은 음식이 있어 GI 60(중간)으로 추정했습니다.")
+
+    # 음주
     alcohol_g = alcohol_kcal = alcohol_carb = 0.0
     for d in drinks:
         a = _alcohol_row(con, d.name)
@@ -206,9 +274,10 @@ def _run(con, person, sc, eer, sodium_limit, rice_kcal, base_probs, rng, n, hori
                          "unit": a["serving_unit"], "alcohol_g": round(a["serving_alcohol_g"] * d.servings, 1)})
     tot["kcal"] += alcohol_kcal
     tot["carb_g"] += alcohol_carb
+    entered_kcal += alcohol_kcal
 
     # 운동
-    ex_kcal, aerobic_session = 0.0, False
+    ex_kcal, aerobic_session, ex_rows = 0.0, False, []
     for e in sc.exercises:
         x = _exercise_row(con, e.name)
         if not x:
@@ -217,35 +286,35 @@ def _run(con, person, sc, eer, sodium_limit, rice_kcal, base_probs, rng, n, hori
         kcal = P.exercise_net_kcal(x["met"], person.weight_kg, e.minutes)
         ex_kcal += kcal
         aerobic_session |= x["met"] >= C.AEROBIC_MIN_MET and e.minutes >= 20
-        resolved.append({"type": "exercise", "query": e.name, "name": x["name"], "minutes": e.minutes,
-                         "met": x["met"], "kcal": round(kcal)})
+        row = {"type": "exercise", "query": e.name, "name": x["name"], "minutes": e.minutes,
+               "met": x["met"], "kcal": round(kcal), "hour": e.hour}
+        resolved.append(row)
+        ex_rows.append({k: row[k] for k in ("name", "minutes", "kcal", "hour")})
 
     net = tot["kcal"] - ex_kcal
 
-    # 오늘: 혈당 부하
-    gl, gl_level, gi_est = P.glycemic_load(gl_items)
-    t_g, idx = P.glucose_response_index(gl)
-    if gi_est:
-        warnings.append("혈당지수가 측정되지 않은 음식이 있어 GI 60(중간)으로 추정했습니다.")
+    # 하루 혈당 흐름
+    g_hours, g_index = P.glucose_day_index(glucose_events)
 
-    # 오늘: 알코올
+    # 알코올
     alcohol = None
     if alcohol_g > 0:
-        times, bac, peak, t_peak, sober = P.bac_curve(
-            [(sc.start_hour, alcohol_g, sc.drink_hours)], person.sex, person.weight_kg, sc.start_hour)
+        start = sc.drink_start_hour if sc.drink_start_hour is not None else (
+            sc.start_hour if sc.foods and not sc.meals else C.DEFAULT_DRINK_START_HOUR)
+        times, bac, pk, t_peak, sober = P.bac_curve([(start, alcohol_g, sc.drink_hours)],
+                                                    person.sex, person.weight_kg, start)
         step = max(1, len(times) // 120)
-        alcohol = {"grams": round(alcohol_g, 1), "std_drinks": round(alcohol_g / C.STD_DRINK_G, 1),
-                   "peak_bac_pct": round(peak, 3), "peak_time": P.clock(t_peak),
+        alcohol = {"grams": round(alcohol_g, 1), "kcal": round(alcohol_kcal),
+                   "std_drinks": round(alcohol_g / C.STD_DRINK_G, 1), "start_hour": start,
+                   "peak_bac_pct": round(pk, 3), "peak_time": P.clock(t_peak),
                    "sober_time": P.clock(sober) if sober else None,
                    "curve": {"hour": [round(float(t), 2) for t in times[::step]],
                              "bac_pct": [round(float(v), 4) for v in bac[::step]]}}
 
-    # 장기
-    ref_kcal = eer * C.REFERENCE_MEAL_SHARE
-    ref_sodium = sodium_limit * C.REFERENCE_MEAL_SHARE
+    # 장기: 이런 날(주 N회)과 '평소대로 먹은 하루'(= 하루 필요열량, 나트륨 기준치)의 차이
     per_day = sc.times_per_week / 7
-    d_kcal_day = (net - ref_kcal) * per_day
-    d_sodium_day = (tot["sodium_mg"] - ref_sodium) * per_day
+    d_kcal_day = (net - eer) * per_day
+    d_sodium_day = (tot["sodium_mg"] - sodium_limit) * per_day
     weekly_alcohol = alcohol_g * sc.times_per_week
     heavy_cut = (person.usual_alcohol_g_per_day >= C.HEAVY_DRINKER_G_PER_DAY
                  and weekly_alcohol <= 0.5 * person.usual_alcohol_g_per_day * 7)
@@ -275,23 +344,31 @@ def _run(con, person, sc, eer, sodium_limit, rice_kcal, base_probs, rng, n, hori
 
     order = {"높음": 2, "중간": 1, "낮음": 0}
     walk_kcal_per_min = (C.BRISK_WALK_MET - 1) * person.weight_kg / 60
+    entered = float(np.median(entered_kcal))
+    peak_level = "낮음" if peak[0] <= C.GL_LOW else ("중간" if peak[0] < C.GL_HIGH else "높음")
     return {
         "scenario": sc.name,
         "times_per_week": sc.times_per_week,
         "resolved": resolved,
         "today": {
-            "kcal": _pct(tot["kcal"], 0), "exercise_kcal": round(ex_kcal), "net_kcal": _pct(net, 0),
+            "kcal": _pct(tot["kcal"], 0), "entered_kcal": round(entered),
+            "exercise_kcal": round(ex_kcal), "net_kcal": _pct(net, 0),
             "pct_of_daily_need": _pct(tot["kcal"] / eer * 100, 0),
-            "carb_g": _pct(tot["carb_g"]), "sugar_g": _pct(tot["sugar_g"]), "fat_g": _pct(tot["fat_g"]),
-            "protein_g": _pct(tot["protein_g"]), "sodium_mg": _pct(tot["sodium_mg"], 0),
+            "carb_g": _pct(tot["carb_g"]), "fat_g": _pct(tot["fat_g"]), "protein_g": _pct(tot["protein_g"]),
+            "sodium_mg": _pct(tot["sodium_mg"], 0),
             "sodium_pct_of_daily_limit": _pct(tot["sodium_mg"] / sodium_limit * 100, 0),
-            "glycemic": {"load": round(gl, 1), "level": gl_level, "gi_estimated": gi_est,
-                         "curve": {"minute": t_g.tolist(), "index": [round(float(v), 1) for v in idx]}},
+            "meals": meal_rows,
+            "exercises": ex_rows,
+            # 직접 입력한 끼니 중 혈당 부하가 가장 큰 끼니 (없으면 meal=None)
+            "glycemic": {"load": round(peak[0], 1), "level": peak_level if peak[1] else None, "meal": peak[1],
+                         "gi_estimated": gi_est,
+                         "curve": {"hour": [round(float(h), 2) for h in g_hours],
+                                   "index": [round(float(v), 1) for v in g_index]}},
             "alcohol": alcohol,
         },
         "fun": {
-            "walk_minutes_to_burn": round(float(np.median(tot["kcal"])) / walk_kcal_per_min),
-            "rice_bowls": round(float(np.median(tot["kcal"])) / rice_kcal, 1),
+            "walk_minutes_to_burn": round(entered / walk_kcal_per_min),
+            "rice_bowls": round(entered / rice_kcal, 1),
             "sodium_vs_daily": f"하루 권장 상한의 {round(float(np.median(tot['sodium_mg'])) / sodium_limit * 100)}%",
         },
         "long_term": long_term,
@@ -306,18 +383,21 @@ def demo():
     sys.stdout.reconfigure(encoding="utf-8")
     me = Person(sex=1, age=35, height_cm=174, weight_kg=78, smoking="never", sbp=128)
     out = simulate(me, [
-        Scenario("치킨 + 맥주", foods=[FoodInput("치킨", 450)], drinks=[DrinkInput("생맥주", 2)], times_per_week=2),
-        Scenario("치킨 + 물", foods=[FoodInput("치킨", 450)], times_per_week=2),
-        Scenario("샐러드 + 30분 걷기", foods=[FoodInput("샐러드", 300)],
-                 exercises=[ExerciseInput("걷기 빠르게", 30)], times_per_week=2),
+        Scenario("치킨 + 맥주", meals={"dinner": MealInput("custom", [FoodInput("치킨", 450)])},
+                 drinks=[DrinkInput("생맥주", 2)], times_per_week=2),
+        Scenario("아침 거르고 치킨", meals={"breakfast": MealInput("skip"),
+                                      "dinner": MealInput("custom", [FoodInput("치킨", 450)])}, times_per_week=2),
+        Scenario("샐러드 + 30분 걷기", meals={"dinner": MealInput("custom", [FoodInput("샐러드", 300)])},
+                 exercises=[ExerciseInput("걷기 빠르게", 30, hour=20)], times_per_week=2),
     ])
     p = out["person"]
     print(f"BMI {p['bmi']}, 하루 필요열량 {p['eer_kcal']} kcal, 현재 위험 {p['risk_now']}")
     for r in out["results"]:
         t, y = r["today"], r["long_term"][-1]
         print(f"\n■ {r['scenario']} (주 {r['times_per_week']}회, 신뢰도 {r['confidence']})")
-        print(f"  오늘: {t['kcal']['med']} kcal ({t['kcal']['p10']}~{t['kcal']['p90']}), "
-              f"나트륨 {t['sodium_mg']['med']} mg, GL {t['glycemic']['load']}({t['glycemic']['level']})")
+        print(f"  하루: {t['kcal']['med']} kcal ({t['kcal']['p10']}~{t['kcal']['p90']}), "
+              f"필요량의 {t['pct_of_daily_need']['med']}%, 나트륨 {t['sodium_mg']['med']} mg")
+        print("  끼니: " + " / ".join(f"{m['label']} {m['kcal']['med']:.0f}({m['mode']})" for m in t["meals"]))
         if t["alcohol"]:
             a = t["alcohol"]
             print(f"  술: {a['grams']} g, 최고 {a['peak_bac_pct']}% ({a['peak_time']}), 분해 완료 {a['sober_time']}")

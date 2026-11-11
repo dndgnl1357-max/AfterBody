@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from engine import DrinkInput, ExerciseInput, FoodInput, Person, Scenario, simulate
+from engine import DrinkInput, ExerciseInput, FoodInput, MealInput, Person, Scenario, simulate
 from engine import config as C
 from engine import physiology as P
 from engine import risk as R
@@ -109,6 +109,32 @@ class TestSimulate(unittest.TestCase):
         out = simulate(p, [Scenario("x", foods=[FoodInput("밥", 210)])], n_sim=50)
         self.assertEqual(out["person"]["eer_kcal"], round(1700 * C.PAL_BY_ACTIVITY["저활동적"]))
         self.assertIn("인바디", out["person"]["energy_source"])
+
+    def test_usual_day_is_neutral(self):
+        out = simulate(ME, [Scenario("평소")], n_sim=50)
+        r = out["results"][0]
+        self.assertAlmostEqual(r["long_term"][-1]["weight_change_kg"]["med"], 0, delta=0.05)
+        self.assertEqual(r["today"]["pct_of_daily_need"]["med"], 100)
+        self.assertEqual([m["mode"] for m in r["today"]["meals"]], ["usual"] * 4)
+
+    def test_skipping_breakfast_lowers_weight(self):
+        out = simulate(ME, [Scenario("거름", meals={"breakfast": MealInput("skip")}, times_per_week=7)], n_sim=50)
+        r = out["results"][0]
+        self.assertLess(r["long_term"][-1]["weight_change_kg"]["med"], -1)
+        self.assertEqual(r["today"]["meals"][0]["kcal"]["med"], 0)
+
+    def test_meals_add_up(self):
+        out = simulate(ME, [Scenario("하루", meals={
+            "breakfast": MealInput("custom", [FoodInput("밥", 210)], hour=7.5),
+            "lunch": MealInput("custom", [FoodInput("김치찌개", 400), FoodInput("밥", 210)]),
+            "dinner": MealInput("custom", [FoodInput("치킨", 450)])},
+            drinks=[DrinkInput("소주", 4)], drink_start_hour=20)], n_sim=100)
+        t = out["results"][0]["today"]
+        parts = sum(m["kcal"]["med"] for m in t["meals"]) + t["alcohol"]["kcal"]
+        self.assertAlmostEqual(parts, t["kcal"]["med"], delta=t["kcal"]["med"] * 0.05)
+        self.assertEqual(t["alcohol"]["start_hour"], 20)
+        self.assertEqual(t["meals"][0]["hour"], 7.5)
+        self.assertGreater(max(t["glycemic"]["curve"]["index"]), 0)
 
     def test_unknown_food_warns(self):
         out = simulate(ME, [Scenario("x", foods=[FoodInput("ㅁㄴㅇㄹ없는음식")])], n_sim=50)

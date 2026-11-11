@@ -76,6 +76,17 @@ def glucose_response_index(gl, minutes=180, step=5):
     return t, shape * 100 * gl / 50
 
 
+def glucose_day_index(events, start_h=6.0, end_h=26.0, step_min=10):
+    """하루 혈당 반응 지수 시계열. events: [(식사 시각 h, GL)] → (hours, index)
+    끼니마다 glucose_response_index 와 같은 곡선(45분 정점)을 식사 시각에 놓고 더한다."""
+    hours = np.arange(start_h, end_h + 1e-9, step_min / 60)
+    total = np.zeros_like(hours)
+    for h, gl in events:
+        m = (hours - h) * 60
+        total += np.where(m >= 0, (m / 45.0) * np.exp(1 - m / 45.0), 0.0) * 100 * gl / 50
+    return hours, total
+
+
 def clock(h):
     """시각(h, 24 이상은 다음날) → '다음날 03:40' 형식"""
     day = "다음날 " if h >= 24 else ""

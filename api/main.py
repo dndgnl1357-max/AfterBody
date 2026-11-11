@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from engine import DrinkInput, ExerciseInput, FoodInput, Person, Scenario, simulate
+from engine import DrinkInput, ExerciseInput, FoodInput, MealInput, Person, Scenario, simulate
 from engine import config as C
 from engine.foods import lookup
 
@@ -49,11 +49,20 @@ class DrinkIn(BaseModel):
 class ExerciseIn(BaseModel):
     name: str
     minutes: float = Field(gt=0, le=600)
+    hour: Optional[float] = Field(default=None, ge=0, le=24)
+
+
+class MealIn(BaseModel):
+    mode: Literal["usual", "custom", "skip"] = "usual"   # 평소대로 / 직접 입력 / 거름
+    foods: list[FoodIn] = []
+    hour: Optional[float] = Field(default=None, ge=0, le=24)
 
 
 class ScenarioIn(BaseModel):
     name: str = Field(max_length=40)
-    foods: list[FoodIn] = []
+    meals: dict[Literal["breakfast", "lunch", "dinner", "snack"], MealIn] = {}
+    drink_start_hour: Optional[float] = Field(default=None, ge=0, le=24)
+    foods: list[FoodIn] = []          # 이전 방식: 저녁 음식
     drinks: list[DrinkIn] = []
     exercises: list[ExerciseIn] = []
     start_hour: float = Field(default=19, ge=0, le=24)
@@ -108,9 +117,10 @@ def run(body: SimulateIn):
         drinks=[DrinkInput(**d.model_dump()) for d in s.drinks],
         exercises=[ExerciseInput(**e.model_dump()) for e in s.exercises],
         start_hour=s.start_hour, drink_hours=s.drink_hours, times_per_week=s.times_per_week,
+        drink_start_hour=s.drink_start_hour,
+        meals={slot: MealInput(m.mode, [FoodInput(**f.model_dump()) for f in m.foods], m.hour)
+               for slot, m in s.meals.items()},
     ) for s in body.scenarios]
-    if not any(s.foods or s.drinks or s.exercises for s in scenarios):
-        raise HTTPException(400, "시나리오에 음식·술·운동 중 하나 이상을 넣어 주세요.")
     return simulate(p, scenarios, n_sim=400)
 
 

@@ -86,7 +86,7 @@ me = Person(sex=1, age=35, height_cm=174, weight_kg=78, sbp=128)
 simulate(me, [Scenario("치맥", foods=[FoodInput("치킨", 450)], drinks=[DrinkInput("생맥주", 2)], times_per_week=2)])
 ```
 
-- 오늘: 열량·나트륨·혈당부하(GI)·혈중알코올 곡선(Widmark)·운동 소모(MET)·재미 환산
+- 하루: 식사(아침·점심·저녁·간식 — 평소대로/직접 입력/안 먹음) + 음주 + 운동을 따로 입력 → 끼니별 열량, 하루 혈당 흐름(GI), 혈중알코올 곡선(Widmark), 운동 소모(MET)
 - 장기(3개월·1년): 체중(Hall 2011) → BMI → 질환 확률(KNHANES 모델), 혈압(RCT 메타분석) → 심혈관 상대위험
 - 모든 결과는 `{p10, med, p90}` 범위 (몬테카를로) — 상수와 출처는 `engine/config.py`, `ref_effects`
 

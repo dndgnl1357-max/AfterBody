@@ -31,10 +31,12 @@ function CountUp({ value, decimals = 0 }) {
 function talk(r, h) {
   const t = r.today;
   if (h === 0) {
+    const pct = t.pct_of_daily_need.med;
     if (t.alcohol) return `술은 ${t.alcohol.sober_time.replace("다음날 ", "내일 ")}쯤 다 깨요`;
+    if (pct >= 120) return `하루 필요량의 ${pct}%… 오늘 좀 많이 먹었다`;
     if (t.exercise_kcal > 0) return `오늘 ${t.exercise_kcal}kcal 더 태웠다!`;
-    if (t.pct_of_daily_need.med >= 55) return `한 끼에 하루치의 ${t.pct_of_daily_need.med}%… 배부르다`;
-    return "가볍게 잘 먹었다~";
+    if (t.meals.some((m) => m.mode === "skip")) return "한 끼 건너뛰었더니 배고파…";
+    return pct <= 95 ? "가볍게 잘 먹었다~" : "딱 평소만큼 먹었다";
   }
   const lt = r.long_term[h - 1], w = lt.weight_change_kg.med, bp = lt.sbp_change.med;
   const when = `${PERIOD[h]} 뒤`;
@@ -131,44 +133,82 @@ const Chip = ({ big, small }) => (
   </div>
 );
 
-function Tonight({ r, i }) {
-  const t = r.today;
+const SEG = { usual: "var(--color-line)", skip: "transparent" };
+
+/** 하루 열량이 어디서 왔는지: 끼니 + 술 가로 막대 */
+function DayBar({ t, i }) {
+  const parts = [
+    ...t.meals.map((m) => ({ key: m.slot, label: m.label, kcal: m.kcal.med, mode: m.mode })),
+    ...(t.alcohol ? [{ key: "drink", label: "술", kcal: t.alcohol.kcal, mode: "drink" }] : []),
+  ];
+  const total = parts.reduce((a, p) => a + p.kcal, 0) || 1;
   return (
-    <Card className="!p-5">
-      <p className="font-display text-lg" style={{ color: INK[i] }}>{r.scenario}</p>
-      <p className="font-display text-4xl tabular-nums"><CountUp value={t.kcal.med} /><span className="ml-1 text-lg text-mute">kcal</span></p>
-      <p className="mb-3 text-xs text-mute">하루에 필요한 양의 {t.pct_of_daily_need.med}%</p>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex h-7 w-full overflow-hidden rounded-full bg-paper ring-1 ring-line">
+        {parts.filter((p) => p.kcal > 0).map((p) => (
+          <motion.div key={p.key} initial={{ width: 0 }} animate={{ width: `${(p.kcal / total) * 100}%` }} transition={{ duration: 0.8 }}
+            title={`${p.label} ${Math.round(p.kcal)}kcal`}
+            className="flex items-center justify-center overflow-hidden whitespace-nowrap border-r border-white text-[11px] font-semibold last:border-r-0"
+            style={{ background: p.mode === "usual" ? SEG.usual : p.mode === "drink" ? "#ffd43b" : INK[i], color: p.mode === "usual" || p.mode === "drink" ? "var(--color-ink)" : "#fff" }}>
+            {p.kcal / total > 0.12 ? p.label : ""}
+          </motion.div>
+        ))}
+      </div>
+      <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-mute">
+        {parts.map((p) => (
+          <li key={p.key}>
+            {p.label} <b className="text-ink tabular-nums">{p.mode === "skip" ? "안 먹음" : `${Math.round(p.kcal)}`}</b>
+            {p.mode === "usual" && <span> (평소)</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function DayCard({ r, i }) {
+  const t = r.today;
+  const eaten = t.meals.filter((m) => m.mode === "custom").flatMap((m) => m.items.map((n) => `${m.label}: ${n}`));
+  return (
+    <Card className="!p-5 flex flex-col gap-3">
+      <div>
+        <p className="font-display text-lg" style={{ color: INK[i] }}>{r.scenario}</p>
+        <p className="font-display text-4xl tabular-nums"><CountUp value={t.kcal.med} /><span className="ml-1 text-lg text-mute">kcal</span></p>
+        <p className="text-xs text-mute">하루에 필요한 양의 <b className={t.pct_of_daily_need.med > 110 ? "text-red-500" : t.pct_of_daily_need.med < 90 ? "text-green-600" : ""}>{t.pct_of_daily_need.med}%</b>
+          {t.exercise_kcal > 0 && <> · 운동으로 {t.exercise_kcal}kcal 더 태움</>}</p>
+      </div>
+      <DayBar t={t} i={i} />
+      {eaten.length > 0 && <p className="text-xs text-mute">{eaten.join(" · ")}</p>}
       <div className="grid grid-cols-2 gap-2">
-        <Chip big={<><CountUp value={r.fun.walk_minutes_to_burn} />분</>} small="빠르게 걸어야 다 태워요" />
-        <Chip big={<><CountUp value={r.fun.rice_bowls} decimals={1} />공기</>} small="밥으로 치면" />
+        {t.entered_kcal > 0 && <Chip big={<><CountUp value={r.fun.walk_minutes_to_burn} />분</>} small="직접 넣은 음식·술을 빠르게 걸어 태우려면" />}
+        {t.entered_kcal > 0 && <Chip big={<><CountUp value={r.fun.rice_bowls} decimals={1} />공기</>} small="밥으로 치면" />}
         <Chip big={`${t.sodium_pct_of_daily_limit.med}%`} small="하루 나트륨 한도 중" />
-        <Chip big={t.glycemic.level} small={`혈당 부하${t.glycemic.gi_estimated ? " (추정)" : ""}`} />
+        {t.glycemic.meal && <Chip big={t.glycemic.level} small={`혈당 부하 가장 큰 끼니: ${t.glycemic.meal}${t.glycemic.gi_estimated ? " (추정)" : ""}`} />}
         {t.alcohol && <Chip big={t.alcohol.sober_time.replace("다음날 ", "")} small="술 다 깨는 시각 (다음날)" />}
-        {t.exercise_kcal > 0 && <Chip big={`${t.exercise_kcal}kcal`} small="운동으로 더 태움" />}
       </div>
     </Card>
   );
 }
 
 function GlucoseChart({ results }) {
-  const data = results[0].today.glycemic.curve.minute.map((m, k) => {
-    const row = { m };
-    results.forEach((r, i) => (row[`s${i}`] = r.today.glycemic.curve.index[k]));
+  const data = results[0].today.glycemic.curve.hour.map((h, k) => {
+    const row = { h };
+    results.forEach((r, n) => (row[`s${n}`] = r.today.glycemic.curve.index[k]));
     return row;
   });
   return (
     <Card>
-      <h3 className="font-display text-xl">먹고 나서 혈당은?</h3>
-      <p className="mb-3 text-xs text-mute">포도당 50g 먹었을 때 꼭대기를 100으로 둔 상대 비교예요 (실제 혈당 수치는 아니에요)</p>
-      <ResponsiveContainer width="100%" height={200}>
+      <h3 className="font-display text-xl">하루 동안 혈당은?</h3>
+      <p className="mb-3 text-xs text-mute">끼니마다 오르내리는 흐름이에요. 포도당 50g 먹었을 때 꼭대기를 100으로 둔 상대 비교 (실제 혈당 수치 아님)</p>
+      <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ left: -24, right: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0e6da" />
-          <XAxis dataKey="m" tickFormatter={(v) => `${v}분`} fontSize={11} />
+          <XAxis dataKey="h" type="number" domain={[6, 26]} ticks={[6, 9, 12, 15, 18, 21, 24]} tickFormatter={hourLabel} fontSize={11} />
           <YAxis fontSize={11} />
-          <Tooltip formatter={(v, n) => [v.toFixed(0), n]} labelFormatter={(v) => `먹고 ${v}분 뒤`} />
-          {results.map((r, i) => (
-            <Line key={i} dataKey={`s${i}`} name={r.scenario} stroke={INK[i]} strokeWidth={3} dot={false}
-              animationDuration={1400} animationBegin={i * 250} />
+          <Tooltip formatter={(v, n) => [v.toFixed(0), n]} labelFormatter={(v) => hourLabel(v)} />
+          {results.map((r, n) => (
+            <Line key={n} dataKey={`s${n}`} name={r.scenario} stroke={INK[n]} strokeWidth={3} dot={false}
+              animationDuration={1400} animationBegin={n * 250} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -204,9 +244,9 @@ export default function Results({ data, look }) {
   return (
     <div className="flex flex-col gap-5">
       <Future data={data} look={look} />
-      <h2 className="font-display mt-6 text-2xl">오늘 밤만 놓고 보면</h2>
+      <h2 className="font-display mt-6 text-2xl">그 하루만 놓고 보면</h2>
       <div className="grid gap-4 md:grid-cols-3">
-        {data.results.map((r, i) => <Tonight key={i} r={r} i={i} />)}
+        {data.results.map((r, i) => <DayCard key={i} r={r} i={i} />)}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <GlucoseChart results={data.results} />

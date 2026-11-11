@@ -4,7 +4,7 @@ import { getCatalog, runSimulation } from "./api";
 import PersonCard from "./components/PersonCard";
 import Results from "./components/Results";
 import ScenarioCard from "./components/ScenarioCard";
-import { BLANK, DEFAULT_PERSON, INK, PRESETS } from "./presets";
+import { BLANK, DEFAULT_PERSON, INK, PRESETS, migrate } from "./presets";
 
 // 브라우저에 입력값 기억 (실패해도 동작에는 지장 없음)
 const load = (k, fallback) => {
@@ -14,7 +14,7 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 
 export default function App() {
   const [person, setPerson] = useState(() => load("ab.person", DEFAULT_PERSON));
-  const [scenarios, setScenarios] = useState(() => load("ab.scenarios", PRESETS));
+  const [scenarios, setScenarios] = useState(() => load("ab.scenarios", PRESETS).map(migrate));
   const [look, setLook] = useState(() => load("ab.look", { skin: "mochi", photo: null }));
   const [catalog, setCatalog] = useState(null);
   const [result, setResult] = useState(null);
@@ -33,7 +33,10 @@ export default function App() {
       const blankToNull = (v) => (v === "" || v === undefined ? null : v);
       const p = { ...person, sbp: blankToNull(person.sbp), bmr_kcal: blankToNull(person.bmr_kcal),
         body_fat_pct: blankToNull(person.body_fat_pct), skeletal_muscle_kg: blankToNull(person.skeletal_muscle_kg) };
-      const sc = scenarios.map((s) => ({ ...s, foods: s.foods.filter((f) => f.query.trim()) }));
+      const sc = scenarios.map(({ foods, ...s }) => ({
+        ...s,
+        meals: Object.fromEntries(Object.entries(s.meals).map(([k, m]) => [k, { ...m, foods: (m.foods ?? []).filter((f) => f.query.trim()) }])),
+      }));
       const data = await runSimulation(p, sc);
       setResult(data);
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
@@ -49,14 +52,14 @@ export default function App() {
       <header className="mb-8">
         <p className="font-display text-xl text-brand">AfterBody</p>
         <h1 className="font-display mt-1 text-4xl leading-tight sm:text-5xl">먹기 전에,<br />미래의 나한테 먼저 물어보기</h1>
-        <p className="mt-3 text-mute">오늘 뭐 먹을지 고민될 때. 선택지 몇 개 넣어보면 1년 뒤 내 모습을 미리 보여줄게요.</p>
+        <p className="mt-3 text-mute">아침·점심·저녁·술·운동까지, 하루를 몇 가지로 짜 보면 그런 날이 쌓인 1년 뒤 내 모습을 미리 보여줄게요.</p>
       </header>
 
       <div className="flex flex-col gap-5">
         <PersonCard person={person} onChange={setPerson} look={look} onLook={setLook} />
 
         <div className="flex items-baseline justify-between">
-          <h2 className="font-display text-2xl">오늘 뭐 할까 고민 중이에요?</h2>
+          <h2 className="font-display text-2xl">어떤 하루를 비교해 볼까요?</h2>
           <div className="flex gap-3 text-sm text-mute">
             <button className="underline" onClick={() => { setScenarios([BLANK(0), BLANK(1)]); setResult(null); }}>빈칸에서 시작</button>
             <button className="underline" onClick={() => { setScenarios(PRESETS); setResult(null); }}>예시 보기</button>
