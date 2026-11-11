@@ -125,7 +125,7 @@ function Future({ data, look, recs, onApply }) {
                   <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 bg-paper" />
                 </motion.div>
               </AnimatePresence>
-              <Character bmi={bmi} refBmi={ref} color={COLORS[i]} hair={look.hair} photo={look.photo}
+              <Character bmi={bmi} refBmi={ref} color={COLORS[i]} hair={look.hair} photo={look.usePhoto ? look.photo : null} features={look.features}
                 mood={m} props={{ ...props, sweat: m === "tired" }} delay={i * 0.4} />
               <p className="font-display text-xl" style={{ color: INK[i] }}>{r.scenario}</p>
               <p className="text-xs text-mute">일주일에 {r.times_per_week}번</p>

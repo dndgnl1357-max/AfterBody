@@ -17,14 +17,14 @@ const HAIR = "#3b2f2f";
 const PANTS = "#5c6378";
 const spring = { type: "spring", stiffness: 70, damping: 13 };
 
-function Hair({ style, back }) {
+function Hair({ style, back, color = HAIR }) {
   if (back) {
-    if (style === "long") return <path d="M56 40 Q54 82 60 104 L100 104 Q106 82 104 40 Z" fill={HAIR} />;
-    if (style === "bob") return <path d="M56 40 Q55 64 60 72 L100 72 Q105 64 104 40 Z" fill={HAIR} />;
+    if (style === "long") return <path d="M56 40 Q54 82 60 104 L100 104 Q106 82 104 40 Z" fill={color} />;
+    if (style === "bob") return <path d="M56 40 Q55 64 60 72 L100 72 Q105 64 104 40 Z" fill={color} />;
     return null;
   }
   return (
-    <g fill={HAIR}>
+    <g fill={color}>
       <path d="M57 44 Q56 20 80 20 Q104 20 103 44 Q96 32 80 31 Q66 31 57 44 Z" />
       {style === "short" && <path d="M64 30 Q76 36 92 29 Q86 24 80 24 Q70 24 64 30 Z" />}
       {style === "bun" && <circle cx="80" cy="15" r="9" />}
@@ -32,7 +32,8 @@ function Hair({ style, back }) {
   );
 }
 
-function Face({ mood, blush }) {
+function Face({ mood, blush, eye = 1, hairColor = HAIR }) {
+  const ex = 8 * eye;
   const mouth = {
     happy: "M73 58 Q80 65 87 58",
     meh: "M74 60 L86 60",
@@ -42,10 +43,10 @@ function Face({ mood, blush }) {
     <g>
       <motion.g animate={{ scaleY: [1, 1, 0.1, 1] }} transition={{ duration: 3.8, times: [0, 0.92, 0.96, 1], repeat: Infinity }}
         style={{ transformOrigin: "80px 48px" }}>
-        <ellipse cx="72" cy="48" rx="2.6" ry="3.4" fill="#2b2b2b" />
-        <ellipse cx="88" cy="48" rx="2.6" ry="3.4" fill="#2b2b2b" />
+        <ellipse cx={80 - ex} cy="48" rx="2.6" ry="3.4" fill="#2b2b2b" />
+        <ellipse cx={80 + ex} cy="48" rx="2.6" ry="3.4" fill="#2b2b2b" />
       </motion.g>
-      <path d={mood === "tired" ? "M67 40 L76 42 M84 42 L93 40" : "M67 41 L76 40 M84 40 L93 41"} stroke={HAIR} strokeWidth="1.8" strokeLinecap="round" />
+      <path d={mood === "tired" ? `M${80 - ex - 5} 40 L${80 - ex + 4} 42 M${80 + ex - 4} 42 L${80 + ex + 5} 40` : `M${80 - ex - 5} 41 L${80 - ex + 4} 40 M${80 + ex - 4} 40 L${80 + ex + 5} 41`} stroke={hairColor} strokeWidth="1.8" strokeLinecap="round" />
       <ellipse cx="66" cy="55" rx="4.5" ry="2.8" fill="#ff8787" opacity={blush ? 0.7 : 0.25} />
       <ellipse cx="94" cy="55" rx="4.5" ry="2.8" fill="#ff8787" opacity={blush ? 0.7 : 0.25} />
       <path d={mouth} stroke="#7a3b2e" strokeWidth="2" fill="none" strokeLinecap="round" />
@@ -53,13 +54,16 @@ function Face({ mood, blush }) {
   );
 }
 
-export default function Character({ bmi, refBmi, color, hair = "short", photo, mood = "meh", props = {}, delay = 0, size = 170 }) {
+export default function Character({ bmi, refBmi, color, hair = "short", photo, features, mood = "meh", props = {}, delay = 0, size = 170 }) {
+  const skin = features?.skin ?? SKIN;
+  const hairColor = features?.hair ?? HAIR;
+  const shape = features?.faceRatio ?? 1;     // 사진에서 측정한 얼굴형 (1 = 보통)
   // 체형: 기준 BMI 대비 변화를 2.5배 과장해서 눈에 보이게 (화면에 '과장 표현' 안내)
   const base = Math.min(Math.max((refBmi / 22) ** 1.2, 0.85), 1.5);
   const f = Math.min(Math.max(base * (1 + 2.5 * (bmi - refBmi) / refBmi), 0.75), 1.9);
   const w = 46 * f;                       // 몸통 폭
   const belly = 34 * f * f / base;        // 배 부분 (체중 변화에 더 민감)
-  const face = Math.min(Math.max(1 + 0.35 * (f / base - 1), 0.85), 1.3);
+  const face = Math.min(Math.max(1 + 0.35 * (f / base - 1), 0.85), 1.3) * shape;
   const id = `face-${color.slice(1)}-${delay}`;
 
   return (
@@ -69,7 +73,7 @@ export default function Character({ bmi, refBmi, color, hair = "short", photo, m
       <defs><clipPath id={id}><circle cx="80" cy="46" r="22" /></clipPath></defs>
       <motion.ellipse cx="80" cy="212" ry="5" fill="#000" opacity="0.08" animate={{ rx: w * 0.9 }} transition={spring} />
 
-      {!photo && <Hair style={hair} back />}
+      {!photo && <motion.g animate={{ scaleX: face }} style={{ transformOrigin: "80px 40px" }} transition={spring}><Hair style={hair} back color={hairColor} /></motion.g>}
 
       {/* 다리·신발 */}
       <motion.rect y="140" width="17" height="64" rx="7" fill={PANTS} animate={{ x: 80 - w * 0.12 - 17 }} transition={spring} />
@@ -80,11 +84,11 @@ export default function Character({ bmi, refBmi, color, hair = "short", photo, m
       {/* 팔 (상의 소매 + 손) */}
       <motion.rect y="80" width="12" height="54" rx="6" fill={color} animate={{ x: 80 - w / 2 - 10 }} transition={spring} />
       <motion.rect y="80" width="12" height="54" rx="6" fill={color} animate={{ x: 80 + w / 2 - 2 }} transition={spring} />
-      <motion.circle cy="138" r="6" fill={SKIN} animate={{ cx: 80 - w / 2 - 4 }} transition={spring} />
-      <motion.circle cy="138" r="6" fill={SKIN} animate={{ cx: 80 + w / 2 + 4 }} transition={spring} />
+      <motion.circle cy="138" r="6" fill={skin} animate={{ cx: 80 - w / 2 - 4 }} transition={spring} />
+      <motion.circle cy="138" r="6" fill={skin} animate={{ cx: 80 + w / 2 + 4 }} transition={spring} />
 
       {/* 몸통 */}
-      <rect x="73" y="62" width="14" height="16" rx="4" fill={SKIN} />
+      <rect x="73" y="62" width="14" height="16" rx="4" fill={skin} />
       <motion.rect y="74" height="74" rx="20" fill={color} animate={{ x: 80 - w / 2, width: w }} transition={spring} />
       <motion.ellipse cx="80" cy="124" ry="20" fill={color} animate={{ rx: belly / 2 }} transition={spring} />
       <motion.ellipse cx="80" cy="128" ry="12" fill="#fff" opacity="0.22" animate={{ rx: belly / 3 }} transition={spring} />
@@ -100,11 +104,11 @@ export default function Character({ bmi, refBmi, color, hair = "short", photo, m
         </g>
       ) : (
         <g>
-          <motion.ellipse cx="80" cy="46" ry="22" fill={SKIN} animate={{ rx: 21 * face }} transition={spring} />
-          <motion.ellipse cy="48" rx="3" ry="5" fill={SKIN} animate={{ cx: 80 - 21 * face }} transition={spring} />
-          <motion.ellipse cy="48" rx="3" ry="5" fill={SKIN} animate={{ cx: 80 + 21 * face }} transition={spring} />
-          <Hair style={hair} />
-          <Face mood={mood} blush={props.beer} />
+          <motion.ellipse cx="80" cy="46" ry="22" fill={skin} animate={{ rx: 21 * face }} transition={spring} />
+          <motion.ellipse cy="48" rx="3" ry="5" fill={skin} animate={{ cx: 80 - 21 * face }} transition={spring} />
+          <motion.ellipse cy="48" rx="3" ry="5" fill={skin} animate={{ cx: 80 + 21 * face }} transition={spring} />
+          <motion.g animate={{ scaleX: face }} style={{ transformOrigin: "80px 40px" }} transition={spring}><Hair style={hair} color={hairColor} /></motion.g>
+          <Face mood={mood} blush={props.beer} eye={features?.eyeGap ?? 1} hairColor={hairColor} />
         </g>
       )}
 

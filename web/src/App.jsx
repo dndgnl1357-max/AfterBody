@@ -34,7 +34,8 @@ export default function App() {
   const [scenarios, setScenarios] = useState(() => load("ab.scenarios", PRESETS).map(migrate));
   const [look, setLook] = useState(() => {
     const l = load("ab.look", {});
-    return { hair: l.hair ?? (load("ab.person", DEFAULT_PERSON).sex === 2 ? "long" : "short"), photo: l.photo ?? null };
+    return { hair: l.hair ?? (load("ab.person", DEFAULT_PERSON).sex === 2 ? "long" : "short"), photo: l.photo ?? null,
+      features: l.features ?? null, usePhoto: l.usePhoto ?? (!!l.photo && !l.features), note: null };
   });
   const [step, setStep] = useState(0);
   const [catalog, setCatalog] = useState(null);
