@@ -1,18 +1,23 @@
+import { AnimatePresence } from "framer-motion";
 import { useRef, useState } from "react";
+import Avatar from "../avatar/Avatar";
+import AvatarEditor from "../avatar/AvatarEditor";
+import { defaultSpec } from "../avatar/spec";
 import { analyzeFace } from "../faceAnalyze";
-import Character, { HAIRS } from "./Character";
 
-/** look: { hair, photo, photoKind, usePhoto, note } — 사진은 이 브라우저에만 저장 */
-export default function CharacterPicker({ look, onChange, bmi }) {
+/** look: { spec, note } — 사진은 분석에만 쓰고 저장하지 않음 (부품 선택값만 저장) */
+export default function CharacterPicker({ look, onChange, bmi, sex }) {
   const cameraRef = useRef();
   const galleryRef = useRef();
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const spec = look.spec ?? defaultSpec(sex);
 
   async function onFile(file) {
     setBusy(true);
     try {
-      const { photo, kind, message } = await analyzeFace(file);
-      onChange({ ...look, photo, photoKind: kind, usePhoto: true, note: message });
+      const r = await analyzeFace(file, sex);
+      onChange({ spec: r.spec ?? spec, note: r.message });
     } catch {
       onChange({ ...look, note: "사진을 읽지 못했어요. 다른 사진으로 해 보세요." });
     } finally {
@@ -23,45 +28,23 @@ export default function CharacterPicker({ look, onChange, bmi }) {
   const btn = "rounded-full bg-white px-3 py-1.5 text-xs font-semibold ring-1 ring-line hover:bg-brand hover:text-white hover:ring-brand disabled:opacity-50";
 
   return (
-    <div className="flex w-full max-w-[230px] flex-col items-center gap-3">
-      <div className="relative">
-        <Character bmi={bmi} refBmi={bmi} color="#ffc9a9" hair={look.hair} photo={look.usePhoto ? look.photo : null}
-          photoKind={look.photoKind} mood="happy" size={120} />
-        {busy && <div className="absolute inset-0 grid place-items-center rounded-3xl bg-white/85 text-xs font-semibold">얼굴 오려 내는 중…</div>}
-      </div>
-
-      {look.photo && (
-        <div className="flex rounded-full bg-paper p-0.5 text-xs ring-1 ring-line">
-          {[[true, "내 얼굴"], [false, "그림 아바타"]].map(([v, t]) => (
-            <button key={t} type="button" onClick={() => onChange({ ...look, usePhoto: v })}
-              className={`rounded-full px-2.5 py-1 ${look.usePhoto === v ? "bg-ink text-white" : "text-mute"}`}>{t}</button>
-          ))}
-        </div>
-      )}
-
-      {!look.usePhoto && (
-        <div className="flex flex-wrap justify-center gap-1">
-          {HAIRS.map((h) => (
-            <button key={h.id} type="button" onClick={() => onChange({ ...look, hair: h.id })}
-              className={`rounded-full px-2.5 py-1 text-xs transition ${look.hair === h.id ? "bg-ink text-white" : "bg-white ring-1 ring-line"}`}>
-              {h.label}
-            </button>
-          ))}
-        </div>
-      )}
-
+    <div className="flex w-full max-w-[240px] flex-col items-center gap-2.5">
+      <button type="button" onClick={() => setEditing(true)} className="relative rounded-3xl" aria-label="아바타 꾸미기 열기">
+        <Avatar spec={spec} bmi={bmi} refBmi={bmi} color="#ffb98a" size={130} />
+        {busy && <div className="absolute inset-0 grid place-items-center rounded-3xl bg-white/85 text-xs font-semibold">사진 보고 그리는 중…</div>}
+      </button>
+      <button type="button" onClick={() => setEditing(true)} className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-white">✏️ 꾸미기</button>
       <div className="flex flex-wrap justify-center gap-1.5">
-        <button type="button" disabled={busy} onClick={() => cameraRef.current.click()} className={btn}>📷 사진 찍기</button>
-        <button type="button" disabled={busy} onClick={() => galleryRef.current.click()} className={btn}>🖼 갤러리·파일에서</button>
-        {look.photo && (
-          <button type="button" className="px-1 text-xs text-mute underline"
-            onClick={() => onChange({ ...look, photo: null, photoKind: "circle", usePhoto: false, note: null })}>지우기</button>
-        )}
+        <button type="button" disabled={busy} onClick={() => cameraRef.current.click()} className={btn}>📷 사진 찍어 만들기</button>
+        <button type="button" disabled={busy} onClick={() => galleryRef.current.click()} className={btn}>🖼 갤러리에서</button>
       </div>
       {look.note && <p className="text-center text-[11px] text-ink">{look.note}</p>}
-      <p className="text-center text-[11px] text-mute">얼굴이 잘 보이는 정면 사진이 가장 좋아요. 사진은 이 기기 안에서만 처리하고 어디에도 보내지 않아요.</p>
+      <p className="text-center text-[11px] text-mute">사진은 이 기기 안에서 분석만 하고 저장·전송하지 않아요.</p>
       <input ref={cameraRef} type="file" accept="image/*" capture="user" hidden onChange={pick} />
       <input ref={galleryRef} type="file" accept="image/*" hidden onChange={pick} />
+      <AnimatePresence>
+        {editing && <AvatarEditor spec={spec} onChange={(s) => onChange({ ...look, spec: s })} onClose={() => setEditing(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

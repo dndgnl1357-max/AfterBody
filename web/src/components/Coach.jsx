@@ -75,9 +75,9 @@ export default function Coach({ person }) {
         {!open && (
           <motion.button key="fab" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
             onClick={() => setOpen(true)} aria-label="바디쌤에게 물어보기"
-            className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-white py-1.5 pl-1.5 pr-4 shadow-xl ring-1 ring-line">
+            className="fixed bottom-24 right-3 z-40 flex items-center gap-2 rounded-full bg-white p-1.5 shadow-xl ring-1 ring-line sm:bottom-5 sm:right-5 sm:pr-4">
             <CoachFace />
-            <span className="font-display text-lg">바디쌤에게 물어보기</span>
+            <span className="font-display hidden text-lg sm:inline">바디쌤에게 물어보기</span>
           </motion.button>
         )}
       </AnimatePresence>

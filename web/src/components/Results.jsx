@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { COLORS, INK } from "../presets";
-import Character from "./Character";
+import Avatar from "../avatar/Avatar";
 
 const Card = ({ children, className = "" }) => (
   <div className={`rounded-3xl bg-card p-6 shadow-sm ring-1 ring-line ${className}`}>{children}</div>
@@ -125,7 +125,7 @@ function Future({ data, look, recs, onApply }) {
                   <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 bg-paper" />
                 </motion.div>
               </AnimatePresence>
-              <Character bmi={bmi} refBmi={ref} color={COLORS[i]} hair={look.hair} photo={look.usePhoto ? look.photo : null} photoKind={look.photoKind}
+              <Avatar spec={look.spec} bmi={bmi} refBmi={ref} color={COLORS[i]}
                 mood={m} props={{ ...props, sweat: m === "tired" }} delay={i * 0.4} />
               <p className="font-display text-xl" style={{ color: INK[i] }}>{r.scenario}</p>
               <p className="text-xs text-mute">일주일에 {r.times_per_week}번</p>

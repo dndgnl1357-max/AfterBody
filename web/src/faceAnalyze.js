@@ -1,13 +1,12 @@
-// 사진 → '내 얼굴 아바타' (브라우저 안에서만 실행, 사진은 어디로도 전송하지 않음)
-//   1. Face Landmarker(얼굴 점 478개) → 얼굴 윤곽선, 위치·크기, 피부색
-//   2. Hair Segmenter → 실제 머리카락 모양
-//   3. 얼굴 윤곽 + 머리카락만 오려 내고(배경 제거) 만화 필터(매끄럽게 → 색 단순화 → 윤곽선)
+// 사진 → 미모티콘식 아바타 초안 (브라우저 안에서만 실행, 사진은 어디로도 전송하지 않음)
+//   Face Landmarker(얼굴 점 478개) → 얼굴형·눈·눈썹·코·입 비율, 피부·눈동자·수염 색
+//   Hair Segmenter → 머리 길이·볼륨·앞머리
+// 측정값을 부품 선택지로 바꾸는 기준은 공공 초상 사진 10장의 측정 분포로 잡았다.
+import { EYE_COLORS, HAIR_COLORS, SKIN_TONES, defaultSpec, nearest } from "./avatar/spec";
+
 const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm";
 const FACE_MODEL = "/mediapipe/face_landmarker.task";
 const HAIR_MODEL = "/mediapipe/hair_segmenter.tflite";
-
-// 결과 스티커 규격: 256×320, 얼굴 폭 96px, 얼굴 중심 (128, 150) — Character.jsx 와 같은 값
-export const STICKER = { w: 256, h: 320, faceW: 96, cx: 128, cy: 150 };
 
 let toolsPromise = null;
 function getTools() {
@@ -21,24 +20,12 @@ function getTools() {
       ImageSegmenter.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "CPU" }, runningMode: "IMAGE",
         outputConfidenceMasks: true, outputCategoryMask: false,
-      }).catch(() => null),                               // 머리카락 모델이 없어도 얼굴만으로 진행
+      }).catch(() => null),
     ]);
-    return { face, hair, oval: chain(FaceLandmarker.FACE_LANDMARKS_FACE_OVAL) };
+    return { face, hair };
   })();
   toolsPromise.catch(() => { toolsPromise = null; });
   return toolsPromise;
-}
-
-/** 얼굴 윤곽 연결선(start→end) → 순서대로 이은 점 번호 */
-function chain(conns) {
-  const next = new Map(conns.map((c) => [c.start, c.end]));
-  const out = [conns[0].start];
-  for (let i = 0; i < conns.length; i++) {
-    const n = next.get(out[out.length - 1]);
-    if (n === undefined || n === out[0]) break;
-    out.push(n);
-  }
-  return out;
 }
 
 function loadImage(file) {
@@ -50,181 +37,150 @@ function loadImage(file) {
   });
 }
 
-function canvasOf(w, h) {
-  const c = document.createElement("canvas");
-  c.width = w; c.height = h;
-  return c;
-}
-
 function toCanvas(img, max = 1024) {
   const k = Math.min(1, max / Math.max(img.width, img.height));
-  const c = canvasOf(Math.round(img.width * k), Math.round(img.height * k));
-  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0, c.width, c.height);
   return c;
 }
 
+const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+const lum = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
-/** 3×3 평균 흐림 (채널 지정) — 피부결 정리·가장자리 부드럽게 */
-function boxBlur(data, w, h, channels) {
-  const src = new Uint8ClampedArray(data);
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const i = (y * w + x) * 4;
-      for (const c of channels) {
-        let s = 0;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += src[i + (dy * w + dx) * 4 + c];
-        data[i + c] = s / 9;
-      }
-    }
-  }
+function sample(ctx, [x, y], r) {
+  const s = Math.max(2, Math.round(r));
+  const d = ctx.getImageData(Math.max(0, Math.round(x - s)), Math.max(0, Math.round(y - s)), s * 2, s * 2).data;
+  let R = 0, G = 0, B = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { R += d[i]; G += d[i + 1]; B += d[i + 2]; n++; }
+  return [R / n, G / n, B / n];
 }
 
-/** 만화 필터: 매끄럽게 → 색 단계 줄이기·채도 살짝 올리기 → 윤곽선 */
-function cartoon(img, w, h) {
-  const d = img.data;
-  boxBlur(d, w, h, [0, 1, 2]);
-  boxBlur(d, w, h, [0, 1, 2]);
-  const gray = new Float32Array(w * h);
-  for (let p = 0, i = 0; p < w * h; p++, i += 4) gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  const step = 28;
-  for (let i = 0; i < d.length; i += 4) {
-    const m = (d[i] + d[i + 1] + d[i + 2]) / 3;
-    for (let c = 0; c < 3; c++) {
-      const sat = m + (d[i + c] - m) * 1.18;                          // 채도 18% 올림
-      d[i + c] = clamp(Math.round(sat / step) * step + 6, 0, 255);    // 색 단계 줄이기
-    }
+/** 측정 → 부품 선택 (기준값은 공공 초상 사진 측정 분포의 대략 1/3, 2/3 지점) */
+export function specFromMeasures(m, sex) {
+  const s = defaultSpec(sex);
+  s.skin = nearest(m.skinRGB, SKIN_TONES);
+  if (m.hairRGB) {
+    const [r, g, b] = m.hairRGB, chroma = Math.max(r, g, b) - Math.min(r, g, b), L = lum(m.hairRGB);
+    // 채도 낮고 밝으면 흰머리·회색 머리
+    s.hairColor = chroma < 22 && L > 150 ? HAIR_COLORS[8] : chroma < 22 && L > 85 ? HAIR_COLORS[7] : nearest(m.hairRGB, HAIR_COLORS);
   }
-  for (let y = 1; y < h - 1; y++) {                                    // Sobel 윤곽선
-    for (let x = 1; x < w - 1; x++) {
-      const g = (dx, dy) => gray[(y + dy) * w + (x + dx)];
-      const gx = -g(-1, -1) - 2 * g(-1, 0) - g(-1, 1) + g(1, -1) + 2 * g(1, 0) + g(1, 1);
-      const gy = -g(-1, -1) - 2 * g(0, -1) - g(1, -1) + g(-1, 1) + 2 * g(0, 1) + g(1, 1);
-      const a = clamp((Math.hypot(gx, gy) - 70) / 120, 0, 0.85);
-      if (a > 0) {
-        const i = (y * w + x) * 4;
-        d[i] = d[i] * (1 - a) + 50 * a; d[i + 1] = d[i + 1] * (1 - a) + 38 * a; d[i + 2] = d[i + 2] * (1 - a) + 38 * a;
-      }
-    }
-  }
-}
+  s.eyeColor = nearest(m.irisRGB, EYE_COLORS);
 
-/** 얼굴을 못 찾았을 때: 가운데를 동그랗게 */
-function circleFallback(canvas) {
-  const W = canvas.width, H = canvas.height, s = Math.min(W, H);
-  const c = canvasOf(256, 256);
-  c.getContext("2d").drawImage(canvas, (W - s) / 2, (H - s) / 2, s, s, 0, 0, 256, 256);
-  return c.toDataURL("image/jpeg", 0.88);
+  s.faceShape = m.widthRatio > 0.865 ? "round" : m.jawRatio > 0.842 ? "square" : m.jawRatio < 0.788 ? "heart" : "oval";
+  s.eyeShape = m.eyeOpen > 0.34 ? "round" : m.eyeOpen < 0.25 ? "narrow" : "almond";
+  s.eyeSize = clamp(m.eyeWidth / 0.193, 0.88, 1.12);
+  s.eyeGap = clamp(m.eyeGap / 0.43, 0.9, 1.1);
+  s.browShape = m.browArch > 0.034 ? "arched" : m.browArch < 0.026 ? "straight" : "soft";
+  s.nose = m.noseWidth > 0.302 ? "wide" : m.noseWidth < 0.275 ? "small" : "button";
+  s.lips = m.lipHeight > 0.16 ? "full" : m.lipHeight < 0.09 ? "thin" : "normal";
+
+  // 머리: 머리카락 영역의 위치·양으로 길이와 앞머리 판단
+  if (m.hair) {
+    const h = m.hair;
+    if (h.area < 0.08) s.hairStyle = "bald";
+    else if (h.below > 0.6 && h.area > 0.9) s.hairStyle = "long";
+    else if (h.below > -0.15 && h.area > 0.8) s.hairStyle = "bob";       // 옷·배경의 어두운 부분을 단발로 착각하지 않게 양도 본다
+    else if (h.volume < 0.12) s.hairStyle = "buzz";
+    else s.hairStyle = h.sideDiff > 0.25 ? "sidepart" : "short";
+    s.bangs = h.forehead > 0.45 ? (h.sideDiff > 0.3 ? "side" : "straight") : (["bob", "long"].includes(s.hairStyle) && h.forehead > 0.2 ? "side" : "none");
+    if (["buzz", "bald"].includes(s.hairStyle)) s.bangs = "none";
+  }
+  // 수염: 턱·윗입술이 볼보다 확실히 어두울 때만
+  s.facialHair = m.chinDark < 0.62 ? "beard" : m.lipDark < 0.66 ? "mustache" : m.chinDark < 0.75 && m.lipDark < 0.8 ? "stubble" : "none";
+  return s;
 }
 
 /**
- * @returns {Promise<{photo: string, kind: "cutout"|"circle", message: string}>}
+ * @returns {Promise<{spec: object|null, measures: object|null, message: string}>}
  */
-export async function analyzeFace(file) {
+export async function analyzeFace(file, sex = 1) {
   const img = await loadImage(file);
   const canvas = toCanvas(img);
   URL.revokeObjectURL(img.src);
   const W = canvas.width, H = canvas.height;
-  const fallback = (message) => ({ photo: circleFallback(canvas), kind: "circle", message });
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
   let tools, marks;
   try {
     tools = await getTools();
     marks = tools.face.detect(canvas).faceLandmarks?.[0];
   } catch {
-    return fallback("얼굴 분석 기능을 불러오지 못해 사진 가운데를 그대로 썼어요.");
+    return { spec: null, measures: null, message: "얼굴 분석 기능을 불러오지 못했어요. 직접 꾸며 주세요." };
   }
-  if (!marks) return fallback("얼굴을 찾지 못했어요. 얼굴이 잘 보이는 정면 사진이면 더 잘 돼요.");
+  if (!marks) return { spec: null, measures: null, message: "얼굴을 찾지 못했어요. 얼굴이 잘 보이는 정면 사진으로 다시 해 보세요." };
 
   const P = (i) => [marks[i].x * W, marks[i].y * H];
-  const ovalPts = tools.oval.map(P);
-  const xs = ovalPts.map((p) => p[0]), ys = ovalPts.map((p) => p[1]);
-  const fx0 = Math.min(...xs), fx1 = Math.max(...xs), fy0 = Math.min(...ys), fy1 = Math.max(...ys);
-  const faceW = fx1 - fx0, faceH = fy1 - fy0;
-  const fcx = (fx0 + fx1) / 2, fcy = (fy0 + fy1) / 2;
+  const faceW = d2(P(234), P(454)), faceH = d2(P(10), P(152));
+  const r = faceW * 0.035;
+  const eyeL = { w: d2(P(33), P(133)), h: d2(P(159), P(145)) }, eyeR = { w: d2(P(263), P(362)), h: d2(P(386), P(374)) };
+  const browY = (o, mid_, inn) => P(mid_)[1] - (P(o)[1] + P(inn)[1]) / 2;   // 음수일수록 가운데가 높음(아치)
+  // 피부: 여러 곳을 뽑아 밝은 하이라이트·어두운 그림자를 빼고 중간 톤 (조명 영향 줄이기)
+  const skinPts = [50, 280, 205, 425, 187, 411, 151, 123, 352].map((i) => sample(ctx, P(i), r)).sort((a, b) => lum(a) - lum(b));
+  const skinRGB = [0, 1, 2].map((k) => (skinPts[2][k] + skinPts[3][k] + skinPts[4][k]) / 3);
+  const chin = sample(ctx, mid(P(152), P(17)), r * 0.8), upperLip = sample(ctx, mid(P(0), P(2)), r * 0.6);
 
-  // ── 마스크: 얼굴 윤곽 + 머리와 이어진 머리카락
-  // 얼굴 점은 이마 중간까지만 있어 위쪽을 이마 끝까지 늘린다 (아래쪽·옆은 4%만)
-  const ovalPath = (ctx, grow, up) => {
-    ctx.beginPath();
-    ovalPts.forEach(([x, y], k) => {
-      const ex = fcx + (x - fcx) * grow;
-      const ey = fcy + (y - fcy) * (y < fcy ? up : grow);
-      k ? ctx.lineTo(ex, ey) : ctx.moveTo(ex, ey);
-    });
-    ctx.closePath();
+  const m = {
+    widthRatio: faceW / faceH,
+    jawRatio: d2(P(172), P(397)) / faceW,
+    eyeOpen: (eyeL.h / eyeL.w + eyeR.h / eyeR.w) / 2,
+    eyeWidth: (eyeL.w + eyeR.w) / 2 / faceW,
+    eyeGap: d2(mid(P(33), P(133)), mid(P(263), P(362))) / faceW,
+    browArch: -(browY(70, 105, 107) + browY(300, 334, 336)) / 2 / faceH,
+    noseWidth: d2(P(48), P(278)) / faceW,
+    lipHeight: d2(P(0), P(17)) / faceH,
+    skinRGB,
+    irisRGB: marks.length > 473 ? sample(ctx, P(468), r * 0.25).map((v, i) => (v + sample(ctx, P(473), r * 0.25)[i]) / 2) : [42, 28, 20],
+    chinDark: lum(chin) / lum(skinRGB),
+    lipDark: lum(upperLip) / lum(skinRGB),
+    hairRGB: null,
+    hair: null,
   };
-  const mask = canvasOf(W, H);
-  const mctx = mask.getContext("2d", { willReadFrequently: true });
-  mctx.fillStyle = "#fff";
-  ovalPath(mctx, 1.04, 1.42);
-  mctx.fill();
-  let hairFound = false;
+
   if (tools.hair) {
     try {
       const res = tools.hair.segment(canvas);
-      const m = res.confidenceMasks?.[res.confidenceMasks.length - 1];   // 마지막 = 머리카락
-      if (m) {
-        const conf = m.getAsFloat32Array(), mw = m.width, mh = m.height;
-        // 머리 주변 영역만 본다
-        const x0 = Math.max(0, Math.floor(fcx - faceW * 1.4)), x1 = Math.min(W, Math.ceil(fcx + faceW * 1.4));
-        const y0 = Math.max(0, Math.floor(fy0 - faceH * 0.9)), y1 = Math.min(H, Math.ceil(fy1 + faceH * 1.3));
-        const rw = x1 - x0, rh = y1 - y0;
-        const hair = new Uint8Array(rw * rh);
-        for (let y = 0; y < rh; y++) {
-          for (let x = 0; x < rw; x++) {
-            const c = conf[Math.floor(((y + y0) / H) * mh) * mw + Math.floor(((x + x0) / W) * mw)];
-            hair[y * rw + x] = c > 0.5 ? 1 : 0;
+      const mask = res.confidenceMasks?.[res.confidenceMasks.length - 1];
+      if (mask) {
+        const conf = mask.getAsFloat32Array(), mw = mask.width, mh = mask.height;
+        const at = (x, y) => conf[Math.floor((y / H) * mh) * mw + Math.floor((x / W) * mw)] > 0.5;
+        const top = P(10)[1], chinY = P(152)[1], cx = (P(234)[0] + P(454)[0]) / 2;
+        const browYv = (P(105)[1] + P(334)[1]) / 2;
+        let area = 0, minY = Infinity, maxSideY = -Infinity, fore = 0, foreN = 0, left = 0, right = 0;
+        const dark = [0, 0, 0]; let dn = 0;
+        const step = Math.max(1, Math.round(faceW / 60));
+        for (let y = Math.max(0, top - faceH * 1.0); y < Math.min(H, chinY + faceH * 1.5); y += step) {
+          for (let x = Math.max(0, cx - faceW * 1.4); x < Math.min(W, cx + faceW * 1.4); x += step) {
+            const inForehead = y > top - faceH * 0.05 && y < browYv && Math.abs(x - cx) < faceW * 0.3;
+            if (inForehead) foreN++;
+            if (!at(x, y)) continue;
+            area++;
+            minY = Math.min(minY, y);
+            if (Math.abs(x - cx) > faceW * 0.45) maxSideY = Math.max(maxSideY, y);
+            if (inForehead) fore++;
+            if (y < top) { x < cx ? left++ : right++; }
+            if (y < top + faceH * 0.1) {
+              const p = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+              dark[0] += p[0]; dark[1] += p[1]; dark[2] += p[2]; dn++;
+            }
           }
         }
-        // 씨앗: 얼굴 윤곽을 조금 넓힌 영역 안의 머리카락 → 이어진 머리카락만 남김 (배경·옷의 어두운 덩어리 제거)
-        const seedC = canvasOf(W, H);
-        const sctx = seedC.getContext("2d", { willReadFrequently: true });
-        sctx.fillStyle = "#fff";
-        ovalPath(sctx, 1.25, 1.6);
-        sctx.fill();
-        const seed = sctx.getImageData(x0, y0, rw, rh).data;
-        const keep = new Uint8Array(rw * rh);
-        const stack = [];
-        for (let p = 0; p < rw * rh; p++) if (hair[p] && seed[p * 4 + 3] > 0) { keep[p] = 1; stack.push(p); }
-        while (stack.length) {
-          const p = stack.pop(), x = p % rw, y = (p - x) / rw;
-          for (const q of [x > 0 ? p - 1 : -1, x < rw - 1 ? p + 1 : -1, y > 0 ? p - rw : -1, y < rh - 1 ? p + rw : -1]) {
-            if (q >= 0 && hair[q] && !keep[q]) { keep[q] = 1; stack.push(q); }
-          }
-        }
-        const md = mctx.getImageData(x0, y0, rw, rh);
-        let n = 0;
-        for (let p = 0; p < rw * rh; p++) {
-          if (keep[p]) { const i = p * 4; md.data[i] = md.data[i + 1] = md.data[i + 2] = md.data[i + 3] = 255; n++; }
-        }
-        mctx.putImageData(md, x0, y0);
-        hairFound = n > faceW * faceH * 0.05;
+        const cell = (faceW / step) * (faceH / step);
+        m.hair = {
+          area: area / cell,
+          volume: (top - minY) / faceH,
+          below: (maxSideY - chinY) / faceH,
+          forehead: foreN ? fore / foreN : 0,
+          sideDiff: (left + right) ? Math.abs(left - right) / (left + right) : 0,
+        };
+        if (dn > 20) m.hairRGB = dark.map((v) => v / dn);
       }
       res.close?.();
-    } catch { /* 머리카락 없이 진행 */ }
+    } catch { /* 머리 정보 없이 진행 */ }
   }
 
-  // ── 스티커 규격으로 잘라 붙이기 (얼굴 폭 96px, 얼굴 중심 128,150)
-  const k = STICKER.faceW / faceW;
-  const sx = fcx - STICKER.cx / k, sy = fcy - STICKER.cy / k, sw = STICKER.w / k, sh = STICKER.h / k;
-  const out = canvasOf(STICKER.w, STICKER.h);
-  const octx = out.getContext("2d", { willReadFrequently: true });
-  octx.drawImage(canvas, sx, sy, sw, sh, 0, 0, STICKER.w, STICKER.h);
-  const pix = octx.getImageData(0, 0, STICKER.w, STICKER.h);
-  cartoon(pix, STICKER.w, STICKER.h);
-
-  const mOut = canvasOf(STICKER.w, STICKER.h);
-  const moctx = mOut.getContext("2d", { willReadFrequently: true });
-  moctx.drawImage(mask, sx, sy, sw, sh, 0, 0, STICKER.w, STICKER.h);
-  const ma = moctx.getImageData(0, 0, STICKER.w, STICKER.h);
-  for (let r = 0; r < 2; r++) boxBlur(ma.data, STICKER.w, STICKER.h, [3]);   // 가장자리 부드럽게
-  for (let i = 3; i < pix.data.length; i += 4) pix.data[i] = ma.data[i];
-  octx.putImageData(pix, 0, 0);
-
-  return {
-    photo: out.toDataURL("image/png"),
-    kind: "cutout",
-    message: hairFound ? "얼굴과 머리 모양 그대로 아바타를 만들었어요." : "얼굴로 아바타를 만들었어요. 머리카락은 잘 안 보여서 얼굴만 썼어요.",
-  };
+  const spec = specFromMeasures(m, sex);
+  return { spec, measures: m, message: "사진을 보고 아바타 초안을 만들었어요. '꾸미기'에서 마음껏 바꿔 보세요." };
 }

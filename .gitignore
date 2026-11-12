@@ -37,3 +37,7 @@ data/runtime.db
 
 # 배포용 실행 묶음은 저장소에 포함
 !runtime/afterbody-runtime.zip
+
+# 테스트용 페이지
+web/calib.html
+web/gallery.html

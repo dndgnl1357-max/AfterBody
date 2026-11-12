@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { searchFood } from "../api";
-import { MEALS, QUICK_FOODS, fromTime, toTime } from "../presets";
+import { MEALS, fromTime, toTime } from "../presets";
 
 const inputCls = "w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
 const RemoveBtn = ({ onClick }) => (
   <button type="button" onClick={onClick} className="shrink-0 px-1 text-mute hover:text-ink" aria-label="삭제">✕</button>
 );
 const TimeInput = ({ value, onChange, label }) => (
-  <input type="time" aria-label={label} className="w-[5.5rem] shrink-0 rounded-lg border border-line bg-white px-1.5 py-1 text-xs tabular-nums focus:border-brand focus:outline-none"
+  <input type="time" aria-label={label} className="w-[7.5rem] shrink-0 rounded-lg border border-line bg-white px-1.5 py-1 text-xs tabular-nums focus:border-brand focus:outline-none"
     value={toTime(value)} onChange={(e) => e.target.value && onChange(fromTime(e.target.value))} />
 );
 
@@ -97,17 +97,8 @@ function MealRow({ slot, meal, color, onChange }) {
             <FoodRow key={i} food={f} onChange={(v) => setFoods(foods.map((x, j) => (j === i ? v : x)))}
               onRemove={() => setFoods(foods.filter((_, j) => j !== i))} />
           ))}
-          <div className="flex flex-wrap items-center gap-1">
-            <button type="button" className="mr-1 text-sm text-brand"
-              onClick={() => setFoods([...foods, { query: "", grams: null, choice: 0 }])}>+ 음식</button>
-            {QUICK_FOODS.map((q) => (
-              <button key={q} type="button"
-                onClick={() => setFoods([...foods.filter((f) => f.query.trim()), { query: q, grams: null, choice: 0 }])}
-                className="rounded-full bg-white px-2 py-0.5 text-xs text-mute ring-1 ring-line hover:bg-brand hover:text-white hover:ring-brand">
-                {q}
-              </button>
-            ))}
-          </div>
+          <button type="button" className="self-start text-sm text-brand"
+            onClick={() => setFoods([...foods, { query: "", grams: null, choice: 0 }])}>+ 음식 추가</button>
         </div>
       )}
     </div>

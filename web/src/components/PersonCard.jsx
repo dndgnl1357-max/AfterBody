@@ -17,7 +17,7 @@ export default function PersonCard({ person, onChange, look, onLook }) {
 
   return (
     <section className="flex flex-col gap-6 rounded-3xl bg-card p-6 shadow-sm ring-1 ring-line md:flex-row md:items-center">
-      <CharacterPicker look={look} onChange={onLook} bmi={bmi || 22} />
+      <CharacterPicker look={look} onChange={onLook} bmi={bmi || 22} sex={person.sex} />
       <div className="flex-1">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="font-display text-2xl">먼저, 나를 알려줘요</h2>

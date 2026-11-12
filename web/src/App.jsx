@@ -5,6 +5,7 @@ import Coach from "./components/Coach";
 import PersonCard from "./components/PersonCard";
 import Results from "./components/Results";
 import ScenarioCard from "./components/ScenarioCard";
+import { migrateLook } from "./avatar/spec";
 import { BLANK, DEFAULT_PERSON, INK, PRESETS, activityOf, migrate } from "./presets";
 
 // 브라우저에 입력값 기억 (실패해도 동작에는 지장 없음)
@@ -34,8 +35,7 @@ export default function App() {
   const [scenarios, setScenarios] = useState(() => load("ab.scenarios", PRESETS).map(migrate));
   const [look, setLook] = useState(() => {
     const l = load("ab.look", {});
-    return { hair: l.hair ?? (load("ab.person", DEFAULT_PERSON).sex === 2 ? "long" : "short"), photo: l.photo ?? null,
-      photoKind: l.photoKind ?? "circle", usePhoto: l.usePhoto ?? !!l.photo, note: null };
+    return migrateLook(l, load("ab.person", DEFAULT_PERSON).sex);
   });
   const [step, setStep] = useState(0);
   const [catalog, setCatalog] = useState(null);
