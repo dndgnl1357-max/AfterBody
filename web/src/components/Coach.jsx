@@ -43,8 +43,9 @@ function Card({ card }) {
   );
 }
 
-export default function Coach({ person }) {
-  const [open, setOpen] = useState(false);
+export function CoachFace_({ size }) { return <CoachFace size={size} />; }
+
+export default function Coach({ person, open, setOpen }) {
   const [msgs, setMsgs] = useState([{ from: "coach", text: "안녕하세요, 바디쌤이에요! 음식 영양성분, 운동으로 쓰는 열량, 술 정보, 건강 상식을 물어보세요.", suggestions: FIRST }]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,9 +76,10 @@ export default function Coach({ person }) {
         {!open && (
           <motion.button key="fab" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
             onClick={() => setOpen(true)} aria-label="바디쌤에게 물어보기"
-            className="fixed bottom-24 right-3 z-40 flex items-center gap-2 rounded-full bg-white p-1.5 shadow-xl ring-1 ring-line sm:bottom-5 sm:right-5 sm:pr-4">
+            title="바디쌤에게 물어보기"
+            className="group fixed bottom-5 right-5 z-40 hidden items-center gap-2 rounded-full bg-white p-1.5 shadow-xl ring-1 ring-line sm:flex">
             <CoachFace />
-            <span className="font-display hidden text-lg sm:inline">바디쌤에게 물어보기</span>
+            <span className="font-display hidden pr-3 text-lg sm:group-hover:inline">바디쌤에게 물어보기</span>
           </motion.button>
         )}
       </AnimatePresence>

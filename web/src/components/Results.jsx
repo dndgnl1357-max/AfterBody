@@ -109,14 +109,15 @@ function Future({ data, look, recs, onApply }) {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-8 md:grid-cols-3">
+      {data.results.length > 1 && <p className="mt-4 text-center text-xs text-mute md:hidden">← 옆으로 넘겨서 비교해 보세요 →</p>}
+      <div className="-mx-6 mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 md:mx-0 md:mt-6 md:grid md:snap-none md:grid-cols-3 md:gap-8 md:overflow-visible md:px-0">
         {data.results.map((r, i) => {
           const lt = h > 0 ? r.long_term[h - 1] : null;
           const bmi = lt ? lt.bmi.med : ref;
           const props = { beer: !!r.today.alcohol, headband: r.today.exercise_kcal > 0 };
           const m = mood(r, h);
           return (
-            <div key={i} className="flex flex-col items-center text-center">
+            <div key={i} className="flex w-[82%] shrink-0 snap-center flex-col items-center text-center md:w-auto">
               <AnimatePresence mode="wait">
                 <motion.div key={`${h}-${i}`} initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0 }} transition={{ delay: i * 0.08 }}

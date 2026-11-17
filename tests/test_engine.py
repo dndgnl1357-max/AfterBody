@@ -177,6 +177,15 @@ class TestCoachAndTips(unittest.TestCase):
         self.assertLess(out[0]["combined"]["effect"]["weight_kg"], tips[0]["effect"]["weight_kg"])
 
 
+class TestPortion(unittest.TestCase):
+    def test_mult_uses_serving(self):
+        out = simulate(ME, [Scenario("a", meals={"lunch": MealInput("custom", [FoodInput("밥", mult=2)])}),
+                            Scenario("b", meals={"lunch": MealInput("custom", [FoodInput("밥", 420)])})], n_sim=30)
+        a, b = (r["resolved"][0]["grams"] for r in out["results"])
+        self.assertEqual(a, 420)        # 1공기 210 g × 2
+        self.assertEqual(a, b)
+
+
 class TestJournal(unittest.TestCase):
     def test_usual_days_neutral(self):
         from datetime import date, timedelta

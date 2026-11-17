@@ -39,7 +39,7 @@ export const toTime = (h) => `${String(Math.floor(h % 24)).padStart(2, "0")}:${S
 export const fromTime = (t) => { const [hh, mm] = t.split(":").map(Number); return hh + mm / 60; };
 
 const usualMeals = () => Object.fromEntries(Object.entries(MEALS).map(([k, m]) => [k, { mode: "usual", foods: [], hour: m.hour }]));
-const food = (query, grams = null) => ({ query, grams, choice: 0 });
+const food = (query, mult = 1) => ({ query, grams: null, choice: 0, mult });
 const day = (name, patch = {}, meals = {}) => ({
   name, drinks: [], drink_start_hour: 19.5, exercises: [], times_per_week: 2, ...patch,
   meals: { ...usualMeals(), ...meals },
@@ -47,11 +47,11 @@ const day = (name, patch = {}, meals = {}) => ({
 
 export const PRESETS = [
   day("치킨 + 맥주", { drinks: [{ name: "생맥주 500cc", servings: 2 }] },
-    { dinner: { mode: "custom", foods: [food("치킨", 450)], hour: 19.5 } }),
+    { dinner: { mode: "custom", foods: [food("치킨", 1.5)], hour: 19.5 } }),
   day("아침 굶고 야식 라면", {},
-    { breakfast: { mode: "skip", foods: [], hour: 8 }, snack: { mode: "custom", foods: [food("라면", 550)], hour: 23 } }),
+    { breakfast: { mode: "skip", foods: [], hour: 8 }, snack: { mode: "custom", foods: [food("라면", 1)], hour: 23 } }),
   day("샐러드 + 걷기", { exercises: [{ name: "걷기 빠르게 (5.6km/h)", minutes: 30, hour: 20.5 }] },
-    { dinner: { mode: "custom", foods: [food("샐러드", 300)], hour: 19 } }),
+    { dinner: { mode: "custom", foods: [food("샐러드", 1)], hour: 19 } }),
 ];
 
 // 한 번 눌러 추가하는 자주 먹는 음식 (별칭표에 있는 이름)
@@ -65,4 +65,16 @@ export function migrate(s) {
   const foods = (s.foods ?? []).filter((f) => f.query?.trim());
   return day(s.name ?? "선택", { drinks: s.drinks ?? [], exercises: s.exercises ?? [], times_per_week: s.times_per_week ?? 2 },
     foods.length ? { dinner: { mode: "custom", foods, hour: 19 } } : {});
+}
+
+// ── 음식 양 버튼 (1인분 기준 중량은 서버가 계산: engine/config.py PORTION_UNITS)
+export const PORTION_STEPS = [0.5, 1, 1.5, 2];
+
+/** 기록에서 자주 먹은 음식 (많이 나온 순, 최대 n개) */
+export function frequentFoods(journal, n = 5) {
+  const count = {};
+  for (const e of Object.values(journal ?? {}))
+    for (const m of Object.values(e.meals ?? {}))
+      if (m.mode === "custom") for (const f of m.foods ?? []) if (f.query?.trim()) count[f.query.trim()] = (count[f.query.trim()] ?? 0) + 1;
+  return Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, n).map(([q]) => q);
 }

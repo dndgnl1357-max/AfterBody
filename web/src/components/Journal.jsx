@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from "recharts";
 import Avatar from "../avatar/Avatar";
 import { getJournal } from "../api";
-import { BLANK, INK } from "../presets";
+import { BLANK, INK, frequentFoods } from "../presets";
 import ScenarioCard from "./ScenarioCard";
 
 const KEY = "ab.journal";
@@ -31,15 +31,18 @@ function toApi(date, e) {
     weight_kg: e.weight_kg || null, logged: e.logged !== false };
 }
 
-export default function Journal({ person, personPayload, catalog, look }) {
+export default function Journal({ person, personPayload, catalog, look, onCompare, version = 0 }) {
   const [entries, setEntries] = useState(load);
   const [day, setDay] = useState(today());
+  const [end, setEnd] = useState(today());          // 날짜 줄의 마지막 날 (이전 2주로 이동)
+  const [view, setView] = useState("log");          // 모바일: log 기록하기 / trend 변화 보기
+  useEffect(() => { setEntries(load()); }, [version]);   // 예시 데이터를 불러오면 다시 읽기
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const fileRef = useRef();
   const stripRef = useRef();
-  useEffect(() => { const el = stripRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);   // 오늘이 보이게
+  useEffect(() => { const el = stripRef.current; if (el) el.scrollLeft = el.scrollWidth; }, [end]);   // 마지막 날이 보이게
 
   useEffect(() => save(entries), [entries]);
 
@@ -61,7 +64,11 @@ export default function Journal({ person, personPayload, catalog, look }) {
     return () => clearTimeout(t);
   }, [apiEntries, person]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const strip = Array.from({ length: 14 }, (_, i) => addDays(today(), i - 13));
+  const strip = Array.from({ length: 14 }, (_, i) => addDays(end, i - 13));
+  const frequent = useMemo(() => frequentFoods(entries), [entries]);
+  // 이 날 이전에 식사를 기록한 가장 가까운 날
+  const prevDay = Object.keys(entries).filter((d) => d < day && entries[d].logged !== false).sort().at(-1);
+  const copyFrom = (d) => { const { weight_kg, ...rest } = structuredClone(entries[d]); setEntry({ ...rest, logged: true }); };
   const byDate = Object.fromEntries((data?.days ?? []).map((d) => [d.date, d]));
 
   function exportFile() {
@@ -98,8 +105,10 @@ export default function Journal({ person, personPayload, catalog, look }) {
       </div>
       <p className="-mt-2 text-[11px] text-mute">기록은 이 기기 브라우저에만 저장돼요. 브라우저 데이터를 지우면 사라지니 가끔 백업해 두세요.</p>
 
-      {/* 최근 14일 */}
-      <div ref={stripRef} className="flex gap-1.5 overflow-x-auto pb-1">
+      {/* 날짜 줄 (2주씩 이동) */}
+      <div className="flex items-center gap-2">
+        <button onClick={() => setEnd(addDays(end, -14))} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-sm ring-1 ring-line" aria-label="이전 2주">◀</button>
+        <div ref={stripRef} className="flex flex-1 gap-1.5 overflow-x-auto pb-1">
         {strip.map((d) => {
           const e = entries[d], info = byDate[d];
           const sel = d === day;
@@ -113,11 +122,25 @@ export default function Journal({ person, personPayload, catalog, look }) {
             </button>
           );
         })}
+        </div>
+        <button onClick={() => setEnd(addDays(end, 14) > today() ? today() : addDays(end, 14))} disabled={end >= today()}
+          className="shrink-0 rounded-full bg-white px-2.5 py-1 text-sm ring-1 ring-line disabled:opacity-30" aria-label="다음 2주">▶</button>
+        <input type="date" value={day} max={today()} aria-label="날짜로 이동"
+          onChange={(e) => { if (e.target.value) { setDay(e.target.value); setEnd(addDays(e.target.value, 7) > today() ? today() : addDays(e.target.value, 7)); } }}
+          className="hidden shrink-0 rounded-lg border border-line bg-white px-2 py-1 text-xs sm:block" />
+      </div>
+
+      {/* 모바일: 기록하기 / 변화 보기 */}
+      <div className="grid grid-cols-2 rounded-2xl bg-white p-1 text-sm ring-1 ring-line lg:hidden" role="tablist">
+        {[["log", "✏️ 기록하기"], ["trend", "📈 변화 보기"]].map(([k, t]) => (
+          <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
+            className={`rounded-xl py-2 ${view === k ? "bg-ink font-semibold text-white" : "text-mute"}`}>{t}</button>
+        ))}
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
         {/* 선택한 날 기록 */}
-        <div className="flex flex-col gap-3">
+        <div className={`flex-col gap-3 ${view === "log" ? "flex" : "hidden lg:flex"}`}>
           <Card className="!p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-display text-xl">{md(day)} ({wd(day)}) {day === today() && <span className="text-sm text-brand">오늘</span>}</p>
@@ -129,22 +152,33 @@ export default function Journal({ person, personPayload, catalog, look }) {
               </label>
             </div>
             {!scenario || scenario.logged === false ? (
-              <button onClick={() => setEntry({ logged: true })} className="mt-3 w-full rounded-2xl border-2 border-dashed border-line py-6 text-mute hover:border-brand hover:text-brand">
-                + 이 날 먹은 것 기록하기
-              </button>
+              <div className="mt-3 flex flex-col gap-2">
+                <button onClick={() => setEntry({ logged: true })} className="w-full rounded-2xl border-2 border-dashed border-line py-5 text-mute hover:border-brand hover:text-brand">
+                  + 이 날 먹은 것 기록하기
+                </button>
+                {prevDay && (
+                  <button onClick={() => copyFrom(prevDay)} className="w-full rounded-2xl bg-paper py-2.5 text-sm ring-1 ring-line hover:ring-brand">
+                    🔁 {md(prevDay)}({wd(prevDay)})과 똑같이 먹었어요
+                  </button>
+                )}
+              </div>
             ) : (
-              <p className="mt-2 text-xs text-mute">바꾸지 않은 끼니는 '평소대로'로 계산해요. 입력하면 바로 저장돼요.
-                <button onClick={removeEntry} className="ml-2 underline">이 날 기록 지우기</button></p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mute">
+                <span>바꾸지 않은 끼니는 '평소대로'로 계산해요. 입력하면 바로 저장돼요.</span>
+                {prevDay && <button onClick={() => copyFrom(prevDay)} className="underline">🔁 {md(prevDay)} 기록 그대로 가져오기</button>}
+                <button onClick={() => onCompare?.({ ...scenario, name: `${md(day)} 기록` })} className="text-brand underline">이 하루를 비교에 넣기 →</button>
+                <button onClick={removeEntry} className="underline">이 날 기록 지우기</button>
+              </div>
             )}
           </Card>
           {scenario && scenario.logged !== false && (
-            <ScenarioCard index={0} color={INK[0]} scenario={scenario} catalog={catalog} hideHeader hideWeekly
+            <ScenarioCard index={0} color={INK[0]} scenario={scenario} catalog={catalog} hideHeader hideWeekly frequent={frequent}
               onChange={(v) => { const { name, ...rest } = v; setEntry({ ...rest, logged: true }); }} />
           )}
         </div>
 
         {/* 누적 분석 */}
-        <div className="flex flex-col gap-4">
+        <div className={`flex-col gap-4 ${view === "trend" ? "flex" : "hidden lg:flex"}`}>
           {!data && !busy && <Card><p className="text-sm text-mute">하루라도 기록하면 여기에 쌓인 변화가 나타나요.</p></Card>}
           {busy && !data && <Card><p className="text-sm text-mute">기록을 모아 계산하는 중… (서버가 잠들어 있었다면 30초쯤 걸려요)</p></Card>}
           {busy && data && <p className="text-xs text-mute">다시 계산하는 중…</p>}

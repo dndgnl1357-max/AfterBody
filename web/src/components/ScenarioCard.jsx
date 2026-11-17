@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { searchFood } from "../api";
-import { MEALS, fromTime, toTime } from "../presets";
+import { MEALS, PORTION_STEPS, fromTime, toTime } from "../presets";
 
 const inputCls = "w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none";
 const RemoveBtn = ({ onClick }) => (
@@ -11,10 +11,11 @@ const TimeInput = ({ value, onChange, label }) => (
     value={toTime(value)} onChange={(e) => e.target.value && onChange(fromTime(e.target.value))} />
 );
 
-/** 음식 입력: 타이핑하면 후보를 보여주고, 고른 후보 번호(choice)를 엔진에 전달 */
+/** 음식 입력: 이름을 치면 가장 맞는 후보, 양은 ½·1·1.5·2인분(또는 공기·개) 버튼으로 */
 function FoodRow({ food, onChange, onRemove }) {
   const [open, setOpen] = useState(false);
   const [cands, setCands] = useState(null);
+  const [gramMode, setGramMode] = useState(food.grams != null && food.mult == null);
   const timer = useRef();
 
   useEffect(() => {
@@ -26,20 +27,20 @@ function FoodRow({ food, onChange, onRemove }) {
 
   const items = cands?.items ?? [];
   const picked = cands?.mode === "combo" ? null : items[food.choice];
+  const base = picked?.serving ?? null;           // 1인분 기준 (서버가 계산: 생활 단위표 → DB 1회량 → 100 g)
+  const mult = food.mult ?? (food.grams == null ? 1 : null);   // 아무것도 안 골랐으면 1인분
+
+  const unitLabel = (m) => `${m === 0.5 ? "½" : m}${base?.unit === "인분" ? "인분" : base?.unit}`;
 
   return (
-    <div className="relative">
+    <div className="relative rounded-xl bg-white p-2 ring-1 ring-line">
       <div className="flex items-center gap-1.5">
-        <input className={inputCls} value={food.query} placeholder="아무 음식이나 (예: 마라탕)"
+        <input className={inputCls} value={food.query} placeholder="먹은 음식 (예: 마라탕)"
           onChange={(e) => { setOpen(false); onChange({ ...food, query: e.target.value, choice: 0 }); }} />
-        <input type="number" className={`${inputCls} w-20`} value={food.grams ?? ""} min={1}
-          placeholder={picked?.portion_g ? String(Math.round(picked.portion_g)) : "g"}
-          onChange={(e) => onChange({ ...food, grams: e.target.value ? Number(e.target.value) : null })} />
-        <span className="text-xs text-mute">g</span>
         <RemoveBtn onClick={onRemove} />
       </div>
       {picked && (
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 pl-1 text-xs text-mute">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 pl-1 text-xs text-mute">
           <span>→ {picked.name} · {picked.kcal_per_100}kcal/{picked.unit}</span>
           {picked.confidence === "낮음" && <span className="text-amber-600">(정확도 낮음)</span>}
           {cands?.mode === "choose" && items.length > 1 && (
@@ -49,10 +50,38 @@ function FoodRow({ food, onChange, onRemove }) {
           )}
         </p>
       )}
+      {base && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {!gramMode && PORTION_STEPS.map((m) => (
+            <button key={m} type="button" onClick={() => onChange({ ...food, mult: m, grams: null })}
+              className={`rounded-full px-2.5 py-1 text-xs transition ${mult === m ? "bg-ink text-white" : "bg-paper text-ink ring-1 ring-line"}`}>
+              {unitLabel(m)}
+            </button>
+          ))}
+          {gramMode && (
+            <span className="flex items-center gap-1">
+              <input type="number" className={`${inputCls} w-20`} value={food.grams ?? ""} min={1} aria-label="먹은 양 (g)"
+                onChange={(e) => onChange({ ...food, mult: null, grams: e.target.value ? Number(e.target.value) : null })} />
+              <span className="text-xs text-mute">g</span>
+            </span>
+          )}
+          <span className="ml-1 text-[11px] text-mute">
+            {!gramMode && mult ? `= ${base.approx ? "약 " : ""}${Math.round(base.g * mult)}g` : ""}{base.note && !gramMode ? ` (${base.note})` : ""}
+          </span>
+          <button type="button" className="ml-auto text-[11px] text-brand underline"
+            onClick={() => {
+              if (gramMode) onChange({ ...food, mult: 1, grams: null });
+              else onChange({ ...food, mult: null, grams: Math.round(base.g * (mult ?? 1)) });
+              setGramMode(!gramMode);
+            }}>
+            {gramMode ? "인분으로" : "g로 직접"}
+          </button>
+        </div>
+      )}
       {cands?.mode === "combo" && <p className="mt-0.5 pl-1 text-xs text-mute">→ 조합: {items.map((i) => i.name).join(" + ")}</p>}
       {cands?.mode === "none" && <p className="mt-0.5 pl-1 text-xs text-amber-600">찾지 못했어요. 다른 이름으로 입력해 보세요.</p>}
       {open && cands?.mode === "choose" && items.length > 1 && (
-        <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-line">
+        <ul className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-line">
           {items.map((it, i) => (
             <li key={i}>
               <button type="button" onClick={() => { onChange({ ...food, choice: i }); setOpen(false); }}
@@ -70,7 +99,7 @@ function FoodRow({ food, onChange, onRemove }) {
 const MODES = [["usual", "평소대로"], ["custom", "직접 입력"], ["skip", "안 먹음"]];
 
 /** 끼니 한 칸: 평소대로 / 직접 입력 / 안 먹음 */
-function MealRow({ slot, meal, color, onChange }) {
+function MealRow({ slot, meal, color, onChange, frequent = [] }) {
   const info = MEALS[slot];
   const foods = meal.foods ?? [];
   const setFoods = (f) => onChange({ ...meal, foods: f });
@@ -97,8 +126,15 @@ function MealRow({ slot, meal, color, onChange }) {
             <FoodRow key={i} food={f} onChange={(v) => setFoods(foods.map((x, j) => (j === i ? v : x)))}
               onRemove={() => setFoods(foods.filter((_, j) => j !== i))} />
           ))}
-          <button type="button" className="self-start text-sm text-brand"
-            onClick={() => setFoods([...foods, { query: "", grams: null, choice: 0 }])}>+ 음식 추가</button>
+          <div className="flex flex-wrap items-center gap-1">
+            <button type="button" className="mr-1 text-sm text-brand"
+              onClick={() => setFoods([...foods, { query: "", grams: null, choice: 0 }])}>+ 음식 추가</button>
+            {frequent.length > 0 && <span className="text-[11px] text-mute">자주 먹은:</span>}
+            {frequent.map((q) => (
+              <button key={q} type="button" onClick={() => setFoods([...foods.filter((f) => f.query.trim()), { query: q, grams: null, choice: 0 }])}
+                className="rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-line hover:bg-brand hover:text-white hover:ring-brand">{q}</button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -107,7 +143,7 @@ function MealRow({ slot, meal, color, onChange }) {
 
 const TABS = [["meal", "🍚 식사"], ["drink", "🍺 음주"], ["move", "🏃 운동"]];
 
-export default function ScenarioCard({ index, color, scenario, catalog, onChange, onRemove, hideHeader = false, hideWeekly = false }) {
+export default function ScenarioCard({ index, color, scenario, catalog, onChange, onRemove, hideHeader = false, hideWeekly = false, frequent = [] }) {
   const [tab, setTab] = useState("meal");
   const set = (patch) => onChange({ ...scenario, ...patch });
   const updateAt = (key, i, v) => set({ [key]: scenario[key].map((x, j) => (j === i ? v : x)) });
@@ -136,7 +172,7 @@ export default function ScenarioCard({ index, color, scenario, catalog, onChange
       {tab === "meal" && (
         <div className="flex flex-col gap-1">
           {Object.keys(MEALS).map((slot) => (
-            <MealRow key={slot} slot={slot} meal={scenario.meals[slot]} color={color}
+            <MealRow key={slot} slot={slot} meal={scenario.meals[slot]} color={color} frequent={frequent}
               onChange={(m) => set({ meals: { ...scenario.meals, [slot]: m } })} />
           ))}
         </div>

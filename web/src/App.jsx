@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { getCatalog, getRecommend, runSimulation } from "./api";
-import Coach from "./components/Coach";
+import Coach, { CoachFace_ } from "./components/Coach";
 import Journal from "./components/Journal";
+import { makeDemo } from "./demo";
 import PersonCard from "./components/PersonCard";
 import Results from "./components/Results";
 import ScenarioCard from "./components/ScenarioCard";
@@ -44,6 +45,9 @@ export default function App() {
   const [recs, setRecs] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [journalVer, setJournalVer] = useState(0);
+  const [privacy, setPrivacy] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
 
   useEffect(() => { getCatalog().then(setCatalog).catch(() => setError("서버에 연결할 수 없어요. 잠시 후 새로고침해 주세요.")); }, []);
   useEffect(() => save("ab.person", person), [person]);
@@ -92,10 +96,35 @@ export default function App() {
 
   const canNext = person.age && person.height_cm && person.weight_kg;
 
+  /** 기록한 하루 → 비교 선택지 (3개가 차 있으면 마지막을 바꿈) */
+  function sendToCompare(sc) {
+    const day = { ...structuredClone(sc), times_per_week: 2 };
+    setScenarios((list) => (list.length < 3 ? [...list, day] : [...list.slice(0, 2), day]));
+    setResult(null);
+    setStep(1);
+  }
+
+  function loadDemo() {
+    if (!window.confirm("시연용 예시 데이터로 바꿀까요? 지금 입력한 내 정보와 기록이 예시로 덮어써져요.")) return;
+    const d = makeDemo();
+    setPerson(d.person);
+    setLook(d.look);
+    try { localStorage.setItem("ab.journal", JSON.stringify(d.journal)); } catch { /* 무시 */ }
+    setJournalVer((v) => v + 1);
+    setScenarios(PRESETS);
+    setResult(null);
+    setStep(0);
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 sm:px-6">
       <header className="sticky top-0 z-30 -mx-4 mb-5 flex flex-wrap items-center justify-between gap-3 bg-paper/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <p className="font-display text-2xl text-brand">AfterBody</p>
+        <div className="flex w-full items-center justify-between sm:w-auto">
+          <p className="font-display text-2xl text-brand">AfterBody</p>
+          <button onClick={() => setCoachOpen(true)} className="flex items-center gap-1 rounded-full bg-white py-0.5 pl-0.5 pr-3 text-sm ring-1 ring-line sm:hidden" aria-label="바디쌤에게 물어보기">
+            <CoachFace_ size={30} />바디쌤
+          </button>
+        </div>
         <nav className="flex items-center gap-1" aria-label="단계">
           {STEPS.map((t, i) => (
             <button key={t} onClick={() => (i !== 2 || result) && setStep(i)} disabled={i === 2 && !result}
@@ -136,7 +165,7 @@ export default function App() {
               <div className="grid items-start gap-4 md:grid-cols-3">
                 {scenarios.map((s, i) => (
                   <ScenarioCard key={i} index={i} color={INK[i]} scenario={s} catalog={catalog}
-                    onChange={(v) => setScenarios(scenarios.map((x, j) => (j === i ? v : x)))}
+                    onChange={(v) => setScenarios((list) => list.map((x, j) => (j === i ? v : x)))}
                     onRemove={scenarios.length > 1 ? () => setScenarios(scenarios.filter((_, j) => j !== i)) : null} />
                 ))}
                 {scenarios.length < 3 && (
@@ -155,7 +184,7 @@ export default function App() {
             </div>
           )}
 
-          {step === 3 && <Journal person={person} personPayload={personPayload} catalog={catalog} look={look} />}
+          {step === 3 && <Journal person={person} personPayload={personPayload} catalog={catalog} look={look} onCompare={sendToCompare} version={journalVer} />}
 
           {step === 2 && result && (
             <div className="flex flex-col gap-4">
@@ -173,10 +202,30 @@ export default function App() {
 
       <footer className="mt-12 text-center text-xs leading-relaxed text-mute">
         의학적 진단이 아닌 건강관리 참고용 추정치입니다. 건강 문제는 전문의와 상담하세요.<br />
-        데이터: 식약처 식품영양성분DB · 질병관리청 국민건강영양조사 2024 · 2025 한국인 영양소 섭취기준 · 무작위대조시험 메타분석
+        데이터: 식약처 식품영양성분DB · 질병관리청 국민건강영양조사 2024 · 2025 한국인 영양소 섭취기준 · 무작위대조시험 메타분석<br />
+        <button onClick={() => setPrivacy(true)} className="mt-2 underline">개인정보 안내</button>
+        <span className="mx-2">·</span>
+        <button onClick={loadDemo} className="underline">🎬 시연용 예시 데이터 불러오기</button>
       </footer>
 
-      <Coach person={person} />
+      {privacy && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/30 p-4" onClick={() => setPrivacy(false)}>
+          <div role="dialog" aria-label="개인정보 안내" onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 text-sm leading-relaxed">
+            <h2 className="font-display text-2xl">개인정보 안내</h2>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-ink">
+              <li><b>저장 위치:</b> 내 정보·아바타·하루 기록은 <b>이 기기 브라우저에만</b> 저장돼요. AfterBody 서버에는 저장하지 않아요.</li>
+              <li><b>계산할 때:</b> 결과를 계산하려고 입력값(나이·키·몸무게·먹은 음식 등)을 서버로 보내지만, 계산이 끝나면 바로 버리고 기록하지 않아요.</li>
+              <li><b>사진:</b> 아바타를 만들 때 사진은 <b>기기 안에서만 분석</b>하고 서버로 보내거나 저장하지 않아요. 분석한 결과(얼굴형·머리 모양 같은 선택값)만 남아요.</li>
+              <li><b>바디쌤:</b> 질문 내용과 몸무게·성별로 답을 계산하고 기록하지 않아요. 외부 AI 서비스를 쓰지 않아요.</li>
+              <li><b>지우기:</b> 브라우저의 사이트 데이터를 지우면 모든 기록이 사라져요. 필요하면 '내 기록'에서 백업 파일로 내보내 두세요.</li>
+              <li>이 서비스는 의학적 진단이 아닌 건강관리 참고용이에요.</li>
+            </ul>
+            <button onClick={() => setPrivacy(false)} className="mt-5 w-full rounded-full bg-ink py-2.5 text-white">확인</button>
+          </div>
+        </div>
+      )}
+
+      <Coach person={person} open={coachOpen} setOpen={setCoachOpen} />
     </div>
   );
 }

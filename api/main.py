@@ -43,6 +43,7 @@ class FoodIn(BaseModel):
     query: str = Field(min_length=1, max_length=50)
     grams: Optional[float] = Field(default=None, gt=0, le=5000)
     choice: int = Field(default=0, ge=0, le=10)
+    mult: Optional[float] = Field(default=None, gt=0, le=20)     # 몇 인분
 
 
 class DrinkIn(BaseModel):
@@ -122,7 +123,7 @@ def food_search(q: str = Query(min_length=1, max_length=50)):
     return {"mode": res["mode"], "items": [
         {"type": it["type"], "name": it["name"],
          **({"unit": it["unit"], "kcal_per_100": it["kcal"]["med"] if it["kcal"] else None,
-             "portion_g": it["portion_g"]["med"] if it["portion_g"] else None,
+             "portion_g": it["portion_g"]["med"] if it["portion_g"] else None, "serving": it["serving"],
              "confidence": it["confidence"], "examples": it["examples"]} if it["type"] == "food"
             else {"kcal": it["serving_kcal"], "unit": it["serving_unit"]})}
         for it in res["items"]]}

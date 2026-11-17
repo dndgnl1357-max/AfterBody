@@ -55,6 +55,7 @@ class FoodInput:
     query: str
     grams: Optional[float] = None    # 없으면 DB 대표 1회량 사용
     choice: int = 0                  # 후보가 여러 개일 때 선택 번호
+    mult: Optional[float] = None     # 몇 인분 (grams 가 없을 때 1인분 기준 × mult)
 
 
 @dataclass
@@ -192,6 +193,8 @@ def _eat(con, foods, rng, n, warnings, resolved, drinks, confidences, slot):
             u = rng.random(n)                     # 같은 음식의 영양소는 함께 움직이도록 동일 분위수 사용
             if f.grams:
                 grams = np.full(n, float(f.grams))
+            elif f.mult:
+                grams = np.full(n, float(it["serving"]["g"]) * f.mult)
             elif it["portion_g"]:
                 grams = _sample(rng.random(n), it["portion_g"])
             else:

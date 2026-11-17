@@ -85,7 +85,19 @@ def food_profile(con, dataCd, lv4cd=None, lv4nm=None, inc=None, exc=None, match=
     # 절반 이상이 GI 측정 형태와 일치할 때만 GI 부여 (아니면 엔진이 분류별 기본값 사용)
     prof["gi"] = int(np.median([g[0] for g in gi])) if len(gi) >= len(codes) / 2 else None
     prof["confidence"] = _confidence(match, len(rows))
+    prof["serving"] = serving_of(prof)
     return prof
+
+
+def serving_of(prof):
+    """1인분(또는 1단위) 기준 중량: 생활 단위표 → DB 대표 1회량 → 100 g"""
+    from .config import PORTION_UNITS
+    if prof["name"] in PORTION_UNITS:
+        unit, g = PORTION_UNITS[prof["name"]]
+        return {"g": g, "unit": unit, "approx": True}
+    if prof.get("portion_g"):
+        return {"g": round(prof["portion_g"]["med"]), "unit": "인분", "approx": False}
+    return {"g": 100, "unit": "인분", "approx": True, "note": "1인분 정보가 없어 100g 기준"}
 
 
 def alcohol_profile(con, name):
