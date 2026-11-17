@@ -107,7 +107,7 @@ function MealRow({ slot, meal, color, onChange }) {
 
 const TABS = [["meal", "🍚 식사"], ["drink", "🍺 음주"], ["move", "🏃 운동"]];
 
-export default function ScenarioCard({ index, color, scenario, catalog, onChange, onRemove }) {
+export default function ScenarioCard({ index, color, scenario, catalog, onChange, onRemove, hideHeader = false, hideWeekly = false }) {
   const [tab, setTab] = useState("meal");
   const set = (patch) => onChange({ ...scenario, ...patch });
   const updateAt = (key, i, v) => set({ [key]: scenario[key].map((x, j) => (j === i ? v : x)) });
@@ -117,12 +117,12 @@ export default function ScenarioCard({ index, color, scenario, catalog, onChange
 
   return (
     <section className="flex flex-col gap-3 rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line">
-      <div className="flex items-center gap-2">
+      {!hideHeader && <div className="flex items-center gap-2">
         <span className="grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: color }}>{index + 1}</span>
         <input className="font-display w-full bg-transparent text-xl focus:outline-none" value={scenario.name}
           onChange={(e) => set({ name: e.target.value })} maxLength={40} aria-label="선택지 이름" />
         {onRemove && <RemoveBtn onClick={onRemove} />}
-      </div>
+      </div>}
 
       <div className="grid grid-cols-3 rounded-2xl bg-paper p-1 text-sm" role="tablist">
         {TABS.map(([k, t]) => (
@@ -188,11 +188,11 @@ export default function ScenarioCard({ index, color, scenario, catalog, onChange
         </div>
       )}
 
-      <label className="mt-auto flex flex-col gap-1 border-t border-line pt-3 text-sm">
+      {!hideWeekly && <label className="mt-auto flex flex-col gap-1 border-t border-line pt-3 text-sm">
         <span className="flex justify-between"><span className="text-mute">이런 날이 일주일에</span><b>{scenario.times_per_week}번</b></span>
         <input type="range" min={1} max={7} value={scenario.times_per_week} style={{ accentColor: color }}
           onChange={(e) => set({ times_per_week: Number(e.target.value) })} aria-label="일주일에 몇 번" />
-      </label>
+      </label>}
     </section>
   );
 }

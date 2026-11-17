@@ -177,5 +177,38 @@ class TestCoachAndTips(unittest.TestCase):
         self.assertLess(out[0]["combined"]["effect"]["weight_kg"], tips[0]["effect"]["weight_kg"])
 
 
+class TestJournal(unittest.TestCase):
+    def test_usual_days_neutral(self):
+        from datetime import date, timedelta
+        from engine.journal import journal
+        d0 = date(2026, 11, 1)
+        out = journal(ME, [(d0 + timedelta(days=i), Scenario("x"), None) for i in range(5)], today=d0 + timedelta(days=4))
+        self.assertAlmostEqual(out["summary"]["predicted_change_kg"], 0, delta=0.01)
+        self.assertEqual(out["summary"]["logged_days"], 5)
+        self.assertFalse(out["calibration"]["used"])
+
+    def test_overeating_accumulates(self):
+        from datetime import date, timedelta
+        from engine.journal import journal
+        d0 = date(2026, 11, 1)
+        big = Scenario("x", meals={"dinner": MealInput("custom", [FoodInput("치킨", 900)])})
+        out = journal(ME, [(d0 + timedelta(days=i), big, None) for i in range(14)], today=d0 + timedelta(days=13))
+        w = [d["predicted_weight"] for d in out["days"]]
+        self.assertTrue(all(b >= a for a, b in zip(w, w[1:])))
+        self.assertGreater(out["projection"]["horizons"][-1]["change_kg"], 0)
+
+    def test_calibration_recovers_true_need(self):
+        """평소대로 먹는데 실제 체중이 하루 300kcal 부족한 속도로 빠지면 → 필요열량 +300 으로 추정"""
+        from datetime import date, timedelta
+        from engine.journal import _trajectory, journal
+        import numpy as np
+        d0 = date(2026, 11, 1)
+        true = ME.weight_kg + _trajectory(np.full(30, -300.0))
+        ents = [(d0 + timedelta(days=i), Scenario("x"), round(float(true[i]), 2) if i % 3 == 0 else None) for i in range(30)]
+        out = journal(ME, ents, today=d0 + timedelta(days=29))
+        self.assertTrue(out["calibration"]["used"])
+        self.assertAlmostEqual(out["calibration"]["offset_kcal"], 300, delta=15)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -25,3 +25,9 @@ export const getRecommend = (person, scenarios) =>
   });
 export const askCoach = (q, weight, sex) =>
   request(`/api/ask?q=${encodeURIComponent(q)}&weight=${encodeURIComponent(weight || 65)}&sex=${sex || 1}`);
+export const getJournal = (person, entries, today) =>
+  request("/api/journal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ person, entries, today }),
+  });

@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { getCatalog, getRecommend, runSimulation } from "./api";
 import Coach from "./components/Coach";
+import Journal from "./components/Journal";
 import PersonCard from "./components/PersonCard";
 import Results from "./components/Results";
 import ScenarioCard from "./components/ScenarioCard";
@@ -14,7 +15,7 @@ const load = (k, fallback) => {
 };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 무시 */ } };
 
-const STEPS = ["나", "하루 짜기", "결과"];
+const STEPS = ["나", "하루 비교", "결과", "내 기록"];
 
 /** 추천 적용: 엔진 recommend.py 의 apply 종류와 같은 변환 */
 function applyTips(sc, applies) {
@@ -50,13 +51,17 @@ export default function App() {
   useEffect(() => save("ab.look", look), [look]);
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [step]);
 
-  function payload(list) {
+  function personPayload() {
     const blankToNull = (v) => (v === "" || v === undefined ? null : v);
-    const p = {
+    return {
       sex: person.sex, age: person.age, height_cm: person.height_cm, weight_kg: person.weight_kg, smoking: person.smoking,
       activity: activityOf(person).level, sbp: blankToNull(person.sbp), bmr_kcal: blankToNull(person.bmr_kcal),
       body_fat_pct: blankToNull(person.body_fat_pct), skeletal_muscle_kg: blankToNull(person.skeletal_muscle_kg),
     };
+  }
+
+  function payload(list) {
+    const p = personPayload();
     const sc = list.map(({ foods, ...s }) => ({
       ...s,
       meals: Object.fromEntries(Object.entries(s.meals).map(([k, m]) => [k, { ...m, foods: (m.foods ?? []).filter((f) => f.query.trim()) }])),
@@ -93,10 +98,10 @@ export default function App() {
         <p className="font-display text-2xl text-brand">AfterBody</p>
         <nav className="flex items-center gap-1" aria-label="단계">
           {STEPS.map((t, i) => (
-            <button key={t} onClick={() => (i < 2 || result) && setStep(i)} disabled={i === 2 && !result}
+            <button key={t} onClick={() => (i !== 2 || result) && setStep(i)} disabled={i === 2 && !result}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-40 ${step === i ? "bg-ink text-white" : "text-mute hover:bg-white"}`}>
-              <span className={`grid size-5 place-items-center rounded-full text-[11px] ${step === i ? "bg-white text-ink" : "bg-line text-ink"}`}>{i + 1}</span>
-              {t}
+              {i < 3 && <span className={`grid size-5 place-items-center rounded-full text-[11px] ${step === i ? "bg-white text-ink" : "bg-line text-ink"}`}>{i + 1}</span>}
+              {i === 3 ? "📅 " : ""}{t}
             </button>
           ))}
         </nav>
@@ -149,6 +154,8 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {step === 3 && <Journal person={person} personPayload={personPayload} catalog={catalog} look={look} />}
 
           {step === 2 && result && (
             <div className="flex flex-col gap-4">

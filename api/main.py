@@ -4,6 +4,7 @@
 문서:  http://localhost:8000/docs  (자동 생성, 직접 눌러서 테스트 가능)
 """
 import sqlite3
+from datetime import date as date_t
 from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -15,6 +16,7 @@ from engine import DrinkInput, ExerciseInput, FoodInput, MealInput, Person, Scen
 from engine import config as C
 from engine.ask import ask
 from engine.foods import lookup
+from engine.journal import journal
 from engine.recommend import recommend
 
 app = FastAPI(title="AfterBody API", version="0.1.0")
@@ -70,6 +72,22 @@ class ScenarioIn(BaseModel):
     start_hour: float = Field(default=19, ge=0, le=24)
     drink_hours: float = Field(default=2, gt=0, le=12)
     times_per_week: float = Field(default=1, ge=0, le=21)
+
+
+class JournalDayIn(BaseModel):
+    date: date_t
+    meals: dict[Literal["breakfast", "lunch", "dinner", "snack"], MealIn] = {}
+    drinks: list[DrinkIn] = []
+    drink_start_hour: Optional[float] = Field(default=None, ge=0, le=24)
+    exercises: list[ExerciseIn] = []
+    weight_kg: Optional[float] = Field(default=None, ge=30, le=250)   # 그날 잰 체중 (선택)
+    logged: bool = True        # False 면 체중만 적은 날 (식사는 평소대로)
+
+
+class JournalIn(BaseModel):
+    person: PersonIn
+    entries: list[JournalDayIn] = Field(max_length=400)
+    today: Optional[date_t] = None
 
 
 class SimulateIn(BaseModel):
@@ -136,6 +154,22 @@ def recommend_tips(body: SimulateIn):
     """선택지마다 효과 큰 대안 최대 3개 (+ 모두 적용 시 효과)"""
     p, scenarios = _to_engine(body)
     return {"results": recommend(p, scenarios)}
+
+
+@app.post("/api/journal")
+def run_journal(body: JournalIn):
+    """하루 기록 누적: 날짜별 섭취 → 체중 흐름, 실제 체중으로 개인 필요열량 보정, 앞으로의 예측"""
+    p = Person(**body.person.model_dump())
+    entries = []
+    for e in body.entries:
+        sc = None
+        if e.logged:
+            sc = Scenario(name=e.date.isoformat(), drinks=[DrinkInput(**d.model_dump()) for d in e.drinks],
+                          exercises=[ExerciseInput(**x.model_dump()) for x in e.exercises], drink_start_hour=e.drink_start_hour,
+                          meals={slot: MealInput(m.mode, [FoodInput(**f.model_dump()) for f in m.foods], m.hour)
+                                 for slot, m in e.meals.items()})
+        entries.append((e.date, sc, e.weight_kg))
+    return journal(p, entries, body.today)
 
 
 @app.get("/api/ask")
